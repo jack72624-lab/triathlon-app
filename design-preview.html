@@ -290,6 +290,8 @@ function enter(){$('#auth').classList.add('gone');$('#shell').classList.add('on'
 window.toggleMenu=()=>$('#user-menu').classList.toggle('open');
 window.doSignOut=()=>{toggleMenu();$('#shell').classList.remove('on');$('#auth').style.display='flex';$('#auth').classList.remove('gone');};
 $('#btn-signin').onclick=enter;
+// 預覽：略過登入，直接進主畫面
+$('#shell').classList.add('on');$('#auth').style.display='none';render();
 </script>
 </body>
 </html>

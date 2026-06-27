@@ -333,8 +333,8 @@ function renderOv(){
   let h=`<div class="ov-cap">一致性導入期 12 週 · 6/29 – 9/20。點任一週進入；淺底＝恢復週（適合排高雄出差）。</div><div class="card">`;
   for(let w=1;w<=12;w++){
     const rec=W[w].type.indexOf('恢復')>=0,total=totalSess(w),n=wkDone(w),pct=total?Math.round(n/total*100):0;
-    const run=W[w].d[6][0],ride=W[w].d[5][0].replace('brick run','brick');
-    h+=`<div class="ovrow ${rec?'rec':''} ${n===total?'full':''}" onclick="cur=${w};setMode('week')"><div><span class="ovnum">週${w}</span><span class="ovtype">${W[w].type}</span></div><div class="ovmid"><div class="ovdate">${DATE[w]}</div><div class="ovkey">${run} · ${ride}</div><div class="ovbar"><i style="width:${pct}%"></i></div></div><div class="ovdone num"><b>${n}</b>/${total}</div></div>`;
+    const run=W[w].d[6][0].replace('長跑 ',''),ride=W[w].d[5][0].split(' + ')[0].replace('長騎 ','');
+    h+=`<div class="ovrow ${rec?'rec':''} ${n===total?'full':''}" onclick="cur=${w};setMode('week')"><div><span class="ovnum">週${w}</span><span class="ovtype">${W[w].type}</span></div><div class="ovmid"><div class="ovdate">${DATE[w]} · 跑 ${run} · 騎 ${ride}</div><div class="ovbar"><i style="width:${pct}%"></i></div></div><div class="ovdone num"><b>${n}</b>/${total}</div></div>`;
   }
   h+=`</div>`;
   $('#ovView').innerHTML=h;

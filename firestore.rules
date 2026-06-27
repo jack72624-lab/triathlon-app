@@ -1,0 +1,16 @@
+rules_version = '2';
+// 三鐵 App Firestore 規則：每人只能讀寫自己的資料。
+// activities 由 n8n 用 service account（Admin SDK）寫入，會繞過規則；
+// App 端只需「讀」自己的 activities，所以 write 設 false。
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      match /activities/{actId} {
+        allow read:  if request.auth != null && request.auth.uid == uid;
+        allow write: if false;   // 只有 n8n（Admin）能寫
+      }
+    }
+  }
+}

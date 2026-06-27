@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<!--
+  三鐵訓練 App — v1 前端 demo（mock 資料、未接後端）
+  風格對齊「收入分配」：深藍漸層 nav/登入、淺灰白卡身、Manrope 字。
+  待接：Firebase Auth(Google)、Firestore 持久、n8n 抓 Strava。設定見 SETUP.md。
+-->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>三鐵課表</title>
+<meta name="theme-color" content="#14171d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --k900:#15171c; --k800:#22262d; --k700:#363b44; --k500:#646b78; --k400:#9098a4;
+  --k300:#b8bec8; --k200:#d4d9e0; --k100:#e6e9ee; --k50:#f1f3f6; --k0:#fff;
+  --bg:#f4f5f7; --card:#fff; --border:#e6e8ec; --text:var(--k900); --r:16px;
+  --sh:0 1px 2px rgba(16,18,24,.04),0 2px 8px rgba(16,18,24,.05);
+  --sh-sm:0 1px 2px rgba(16,18,24,.06);
+  --navy1:#0f1020; --navy2:#1e2038;
+  --core:#c2566b; --keep:#4a73a8; --flex:#9098a4; --rest:#b8bec8;
+  --done:#4e9d77; --miss:#c2566b; --bonus:#c98a3e;
+  --safe-top:env(safe-area-inset-top,0px); --safe-bot:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","Helvetica Neue",sans-serif;background:var(--bg);color:var(--text)}
+.num{font-family:"Manrope",-apple-system,sans-serif;font-variant-numeric:tabular-nums}
+
+/* ── Auth ── */
+#auth{position:fixed;inset:0;background:linear-gradient(160deg,#0f1020 0%,#1e2038 60%,#0f1020 100%);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(60px + var(--safe-top)) 32px calc(40px + var(--safe-bot));transition:opacity .4s}
+#auth.gone{opacity:0;pointer-events:none}
+.auth-icon{width:64px;height:64px;background:rgba(255,255,255,.08);border-radius:16px;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;margin-bottom:24px}
+.auth-title{font-family:"Manrope";font-size:26px;font-weight:800;color:#f5f2ef;letter-spacing:-.5px;margin-bottom:8px}
+.auth-sub{font-size:14px;color:var(--k400);text-align:center;line-height:1.6;margin-bottom:44px;max-width:260px}
+.btn-google{display:flex;align-items:center;gap:12px;background:#f5f2ef;color:#0f1020;border:none;border-radius:14px;padding:15px 24px;font-size:15px;font-weight:600;cursor:pointer;width:100%;max-width:300px;justify-content:center;box-shadow:0 4px 20px rgba(0,0,0,.3);transition:transform .12s}
+.btn-google:active{transform:scale(.97)}
+.auth-note{font-size:11px;color:var(--k500);text-align:center;margin-top:20px;line-height:1.6;max-width:280px}
+.demo-pill{font-size:10px;color:#cdb98a;background:rgba(201,138,62,.16);border:1px solid rgba(201,138,62,.3);padding:3px 9px;border-radius:99px;margin-bottom:20px;letter-spacing:.04em}
+
+/* ── Shell ── */
+#shell{display:none;flex-direction:column;height:100%;padding-top:var(--safe-top)}
+#shell.on{display:flex}
+.nav{background:linear-gradient(160deg,#0f1020,#1e2038);padding:14px 18px 12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.07)}
+.nav-left{display:flex;align-items:center;gap:10px}
+.nav-icon{width:30px;height:30px;background:rgba(255,255,255,.08);border-radius:8px;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center}
+.nav-title{font-family:"Manrope";font-size:15px;font-weight:700;color:#f5f2ef;letter-spacing:.3px}
+.nav-sub{font-size:10px;color:var(--k400);margin-top:1px}
+.sync-badge{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:#6a8fae;padding:4px 9px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09)}
+.sync-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.scroll{flex:1;overflow-y:auto;padding:14px 16px calc(40px + var(--safe-bot));-webkit-overflow-scrolling:touch}
+
+/* ── Segmented ── */
+.seg{display:flex;gap:4px;background:var(--k100);padding:3px;border-radius:11px;margin-bottom:14px}
+.seg button{flex:1;border:none;background:none;padding:8px 0;font-size:13px;font-weight:600;color:var(--k500);border-radius:8px;cursor:pointer;font-family:inherit}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:var(--sh-sm)}
+
+/* ── Cards ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh)}
+.sec-label{font-size:11px;font-weight:700;color:var(--k500);letter-spacing:.07em;margin:18px 4px 9px;display:flex;align-items:center;gap:7px}
+.sec-label::before{content:"";width:3px;height:12px;background:var(--k400);border-radius:2px}
+
+/* 進度 */
+.wk-head{padding:15px 16px;display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.wk-title{font-family:"Manrope";font-size:18px;font-weight:800;letter-spacing:-.3px}
+.wk-meta{font-size:12px;color:var(--k500);margin-top:3px}
+.wk-pct{font-family:"Manrope";font-size:22px;font-weight:800;color:var(--done)}
+.track{height:7px;background:var(--k100);border-radius:99px;overflow:hidden;margin-top:11px}
+.fill{height:100%;width:0;background:var(--done);border-radius:99px;transition:width .3s}
+
+/* 日卡 */
+.day{display:flex;gap:11px;align-items:flex-start;padding:13px 14px;border-bottom:1px solid var(--border)}
+.day:last-child{border-bottom:none}
+.day-l{flex:0 0 4px;align-self:stretch;border-radius:99px;background:var(--rest)}
+.day.core .day-l{background:var(--core)} .day.keep .day-l{background:var(--keep)}
+.day.flex .day-l{background:var(--flex)} .day.rest .day-l{background:var(--rest)}
+.dname{flex:0 0 24px;font-weight:700;font-size:15px;text-align:center;padding-top:1px}
+.dbody{flex:1;min-width:0}
+.dtxt{font-size:14.5px;font-weight:600}
+.dmeta{display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap}
+.pill{font-size:10px;padding:2px 8px;border-radius:99px;color:#fff;font-weight:600}
+.pill.core{background:var(--core)} .pill.keep{background:var(--keep)} .pill.flex{background:var(--flex)} .pill.rest{background:var(--rest);color:#3a3f48}
+.tag{font-size:10px;padding:2px 8px;border-radius:99px;background:var(--k50);color:var(--k500)}
+.tag.test{background:#fbf3e6;color:#b06a00}
+.tag.done{background:#e7f4ee;color:var(--done)}
+.tag.miss{background:#fbe9ec;color:var(--miss)}
+.strava{font-size:11.5px;color:var(--k500);margin-top:5px;display:flex;align-items:center;gap:5px}
+.strava b{color:var(--text);font-weight:600}
+.chk{flex:0 0 26px;width:26px;height:26px;border-radius:8px;border:2px solid var(--k200);background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:1px}
+.chk svg{width:15px;height:15px;stroke:#fff;opacity:0}
+.chk.on{background:var(--done);border-color:var(--done)} .chk.on svg{opacity:1}
+.day.checked .dtxt{text-decoration:line-through;text-decoration-color:var(--k300)}
+.day.checked{opacity:.6}
+
+/* 額外活動 */
+.extra{padding:13px 14px;border-bottom:1px solid var(--border)}
+.extra:last-child{border-bottom:none}
+.extra-top{display:flex;justify-content:space-between;align-items:center}
+.extra-name{font-size:14px;font-weight:600}
+.extra-sub{font-size:11.5px;color:var(--k500);margin-top:3px}
+.extra-act{display:flex;gap:8px;margin-top:10px}
+.extra-act button{flex:1;padding:8px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--border)}
+.b-yes{background:var(--k900);color:#fff;border:none} .b-no{background:var(--card);color:var(--k500)}
+
+/* legend */
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin:10px 4px 0;font-size:11px;color:var(--k500)}
+.legend span{display:flex;align-items:center;gap:5px}
+.dot{width:9px;height:9px;border-radius:99px;display:inline-block}
+
+/* overview */
+.ov-cap{font-size:12px;color:var(--k500);margin:2px 4px 10px;line-height:1.5}
+.ovrow{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer}
+.ovrow:last-child{border-bottom:none}
+.ovrow.rec{background:var(--k50)}
+.ovnum{font-family:"Manrope";font-weight:800;font-size:15px;min-width:38px}
+.ovtype{font-size:10px;color:var(--k500);display:block;margin-top:1px;font-family:inherit;font-weight:400}
+.ovmid{flex:1;min-width:0}
+.ovdate{font-size:11.5px;color:var(--k500)}
+.ovkey{font-size:13px;font-weight:600;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovdone{font-family:"Manrope";font-size:12px;color:var(--k500);flex:0 0 auto}
+.ovdone b{color:var(--done)}
+.foot{text-align:center;font-size:11px;color:var(--k400);margin-top:22px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<!-- 登入（mock） -->
+<div id="auth">
+  <div class="demo-pill">DEMO · 前端預覽，未接後端</div>
+  <div class="auth-icon">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#f5f2ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>
+  </div>
+  <div class="auth-title">三鐵課表</div>
+  <div class="auth-sub">Challenge Taiwan 226 · 一致性導入期<br>打卡、看課表、Strava 自動對應</div>
+  <button class="btn-google" onclick="enterApp()">
+    <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z"/></svg>
+    用 Google 登入
+  </button>
+  <div class="auth-note">這是前端 demo：按鈕直接進入、用 mock 資料。正式版會接 Firebase Google 登入與雲端同步（見 SETUP.md）。</div>
+</div>
+
+<!-- 主畫面 -->
+<div id="shell">
+  <div class="nav">
+    <div class="nav-left">
+      <div class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f5f2ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></div>
+      <div><div class="nav-title">三鐵課表</div><div class="nav-sub">CT226 · 導入期</div></div>
+    </div>
+    <div class="sync-badge"><span class="sync-dot"></span>DEMO</div>
+  </div>
+  <div class="scroll">
+    <div class="seg"><button id="segWeek" class="on" onclick="setMode('week')">本週</button><button id="segOv" onclick="setMode('ov')">月總覽</button></div>
+    <div id="weekView"></div>
+    <div id="ovView" style="display:none"></div>
+    <div class="foot">v1 前端 demo · 風格對齊「收入分配」<br>資料為 mock，待接 Firebase + Strava（SETUP.md）</div>
+  </div>
+</div>
+
+<script>
+const T={core:'核心',keep:'維持',flex:'彈性',rest:'休'};
+const W={
+ 1:{type:'建立',d:[['游 技術/有氧 0:45','keep'],['跑 4k easy','core'],['騎 1:00 Z2','keep'],['跑 4k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 1:30 + brick run 10min','core'],['長跑 8k','core']]},
+ 2:{type:'建立',d:[['游 0:45','keep'],['跑 5k easy','core'],['FTP/ramp 測試','keep','test'],['跑 5k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 1:45 + brick run 10min','core'],['長跑 9k','core']]},
+ 3:{type:'恢復',d:[['游 0:40','keep'],['跑 4k easy','core'],['騎 0:50 Z2','keep'],['跑 4k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 1:30 + brick run 10min','core'],['長跑 7k','core']]},
+ 4:{type:'建立',d:[['游 0:45','keep'],['5k 計時','core','test'],['騎 1:00 Z2','keep'],['跑 6k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:00 + brick run 12min','core'],['長跑 10k','core']]},
+ 5:{type:'建立',d:[['游 0:45','keep'],['跑 6k easy','core'],['騎 1:00 Z2','keep'],['跑 6k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:00 + brick run 15min','core'],['長跑 11k','core']]},
+ 6:{type:'恢復',d:[['游 0:40','keep'],['跑 5k easy','core'],['騎 0:50 Z2','keep'],['跑 5k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 1:45 + brick run 12min','core'],['長跑 9k','core']]},
+ 7:{type:'建立',d:[['游 0:45','keep'],['跑 6k easy','core'],['騎 1:10 Z2','keep'],['跑 7k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:15 + brick run 15min','core'],['長跑 12k','core']]},
+ 8:{type:'建立',d:[['游 0:45','keep'],['跑 7k easy','core'],['騎 1:10 Z2','keep'],['跑 7k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:15 + brick run 18min','core'],['長跑 13k','core']]},
+ 9:{type:'恢復',d:[['游 0:40','keep'],['跑 5k easy','core'],['騎 1:00 Z2','keep'],['跑 6k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:00 + brick run 12min','core'],['長跑 10k','core']]},
+ 10:{type:'建立',d:[['游 0:45','keep'],['跑 7k easy','core'],['騎 1:15 Z2','keep'],['跑 8k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:30 + brick run 18min','core'],['長跑 13k','core']]},
+ 11:{type:'高峰',d:[['游 0:45','keep'],['跑 7k easy','core'],['騎 1:15 Z2','keep'],['跑 8k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:30 + brick run 20min','core'],['長跑 14k','core']]},
+ 12:{type:'恢復/銜接',d:[['游 0:45','keep'],['跑 6k easy','core'],['騎 1:00 Z2','keep'],['跑 6k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:00 + brick run 15min','core'],['長跑 11k','core']]},
+};
+const DATE={1:'6/29–7/5',2:'7/6–7/12',3:'7/13–7/19',4:'7/20–7/26',5:'7/27–8/2',6:'8/3–8/9',7:'8/10–8/16',8:'8/17–8/23',9:'8/24–8/30',10:'8/31–9/6',11:'9/7–9/13',12:'9/14–9/20'};
+const DAYS=['一','二','三','四','五','六','日'];
+// mock Strava 對應（demo：第 1 週）。dayIdx → 實際活動字串
+const STRAVA={1:{1:'Strava：Run 5.2k · 32:10 · HR145 ＋0.2k',5:'Strava：Ride 46k · 1:52 · IF 0.70',6:'Strava：Run 8.3k · 52:00 ＋0.3k'}};
+// 額外活動（當週課池配完、未匹配）→ 一鍵算/不算
+const EXTRA={1:[{name:'Run 3.1k · 19:40',sub:'週日清晨 · 當日已有長跑，這筆未匹配課表'}]};
+
+const KEY='triapp_done_v1';
+let done=JSON.parse(localStorage.getItem(KEY)||'{}');
+let cur=1, mode='week';
+const $=s=>document.querySelector(s);
+function wkDone(w){let n=0;for(let i=0;i<7;i++)if(done[w+'_'+i])n++;return n;}
+function save(){localStorage.setItem(KEY,JSON.stringify(done));}
+window.enterApp=()=>{$('#auth').classList.add('gone');$('#shell').classList.add('on');setTimeout(()=>$('#auth').style.display='none',420);render();};
+window.setMode=m=>{mode=m;$('#segWeek').className=m==='week'?'on':'';$('#segOv').className=m==='ov'?'on':'';$('#weekView').style.display=m==='week'?'block':'none';$('#ovView').style.display=m==='ov'?'block':'none';render();};
+
+function render(){mode==='week'?renderWeek():renderOv();}
+
+function renderWeek(){
+  const n=wkDone(cur), sv=STRAVA[cur]||{}, ex=EXTRA[cur]||[];
+  let h=`<div class="card wk-head"><div><div class="wk-title num">週 ${cur}</div><div class="wk-meta">${DATE[cur]} · ${W[cur].type}期 · 全 Zone 2</div></div><div style="text-align:right"><div class="wk-pct num">${Math.round(n/7*100)}%</div><div class="wk-meta">${n}/7</div></div></div>`;
+  h+=`<div class="card">`;
+  W[cur].d.forEach((day,idx)=>{
+    const lv=day[1],isDone=!!done[cur+'_'+idx],test=day[2]==='test';
+    const act=sv[idx];
+    h+=`<div class="day ${lv} ${isDone?'checked':''}"><div class="day-l"></div><div class="dname num">${DAYS[idx]}</div><div class="dbody"><div class="dtxt">${day[0]}</div><div class="dmeta"><span class="pill ${lv}">${T[lv]}</span>${test?'<span class="tag test">測試</span>':''}${act?'<span class="tag done">對應</span>':''}</div>${act?`<div class="strava"><svg width="11" height="11" viewBox="0 0 24 24" fill="#fc5200"><path d="M15.4 16.97l-2.2-4.4-2.2 4.4H7.5L13.2 5l5.7 11.97h-3.5z"/></svg><b>${act}</b></div>`:''}</div><div class="chk ${isDone?'on':''}" onclick="toggle(${idx})"><svg viewBox="0 0 24 24" fill="none" stroke-width="3.5"><path d="M5 13l4 4L19 7"/></svg></div></div>`;
+  });
+  h+=`</div>`;
+  h+=`<div class="legend"><span><i class="dot" style="background:var(--core)"></i>核心</span><span><i class="dot" style="background:var(--keep)"></i>維持</span><span><i class="dot" style="background:var(--flex)"></i>彈性</span><span><i class="dot" style="background:var(--done)"></i>已對應 Strava</span></div>`;
+  if(ex.length){
+    h+=`<div class="sec-label">額外活動 · 要算進訓練嗎？</div><div class="card">`;
+    ex.forEach((e,i)=>{h+=`<div class="extra" id="ex${i}"><div class="extra-top"><div><div class="extra-name">${e.name}</div><div class="extra-sub">${e.sub}</div></div><span class="tag" style="background:#fbf1e3;color:var(--bonus)">未匹配</span></div><div class="extra-act"><button class="b-yes" onclick="exAct(${i},1)">算 bonus</button><button class="b-no" onclick="exAct(${i},0)">不算</button></div></div>`;});
+    h+=`</div>`;
+  }
+  $('#weekView').innerHTML=h;
+}
+window.toggle=idx=>{done[cur+'_'+idx]=!done[cur+'_'+idx];save();renderWeek();};
+window.exAct=(i,yes)=>{const el=$('#ex'+i);if(el){el.querySelector('.extra-act').innerHTML=`<div style="flex:1;text-align:center;font-size:12.5px;color:${yes?'var(--done)':'var(--k400)'};font-weight:600">${yes?'已算入訓練負荷':'已略過'}</div>`;}};
+
+function renderOv(){
+  let h=`<div class="ov-cap">一致性導入期 12 週 · 6/29 – 9/20。點任一週進入打卡；淺底＝恢復週（適合排高雄出差）。</div><div class="card">`;
+  for(let w=1;w<=12;w++){
+    const rec=W[w].type.indexOf('恢復')>=0,n=wkDone(w);
+    const run=W[w].d[6][0],ride=W[w].d[5][0].replace('brick run','brick');
+    h+=`<div class="ovrow ${rec?'rec':''}" onclick="setMode('week');cur=${w};setMode('week')"><div><span class="ovnum">週${w}</span><span class="ovtype">${W[w].type}</span></div><div class="ovmid"><div class="ovdate">${DATE[w]}</div><div class="ovkey">${run} · ${ride}</div></div><div class="ovdone num"><b>${n}</b>/7</div></div>`;
+  }
+  h+=`</div>`;
+  $('#ovView').innerHTML=h;
+}
+</script>
+</body>
+</html>

@@ -438,9 +438,19 @@ window.adjClear=(di,si)=>{delete sessionAdj[cur+'_'+di+'_'+si];push();closeSheet
    寫進 Firestore weather/current；App 用 startSync 的 listener 自動讀。
    手動 setWsim 仍可臨時覆寫（下次輪詢會被自動值蓋回）。
    ============================================================ */
-let weather={ level: LS('tp_wsim','clear'), pop:null, wx:'' };   // clear | rain | typhoon
-function fetchWeather(){ /* 已改由 Firestore weather/current listener 提供（見 startSync）；保留空函式相容 enter() 呼叫 */ }
-window.setWsim=lv=>{ weather.level=lv; localStorage.setItem('tp_wsim',JSON.stringify(lv)); render(); };
+const HOME_CITY='新北市', TRIP_CITY='高雄市';   // 平常抓新北、高雄週自動切高雄
+let weatherByCity={};                            // {'新北市':{level,pop,wx},'高雄市':{...}}（n8n 抓 CWA 寫入）
+let weather={ level:'clear', pop:null, wx:'' };  // 由 applyWeather() 從「當前該看的城市」解出
+let wxOverride=null;                             // 手動覆寫（null=自動），只在這次工作階段有效
+function fetchWeather(){ /* 天氣改由 Firestore weather/current listener 提供（見 startSync）；保留空函式相容 enter() */ }
+// 今天落在「去高雄的移動週」→ 看高雄，否則看新北
+function activeCity(){ const m=weekMode[weekOfTodayMaybe()]; return (m&&m.mode==='recovery'&&/高雄/.test(m.dest||''))?TRIP_CITY:HOME_CITY; }
+function applyWeather(){
+  if(wxOverride){ weather.level=wxOverride; return; }
+  const c=weatherByCity[activeCity()];
+  if(c){ weather.level=c.level||'clear'; weather.pop=(c.pop??null); weather.wx=(c.wx||''); }
+}
+window.setWsim=lv=>{ wxOverride=(lv==='auto'?null:lv); applyWeather(); render(); };   // 'auto'=回到自動
 // 今天是星期幾（落在本週才標）— demo 取週三
 function todayIdx(){ const t=new Date(); if(weekOf(t.toISOString().slice(0,10))===cur){ return (t.getDay()+6)%7; } return 2; }
 window.autoWeather=()=>{
@@ -494,7 +504,7 @@ const LVCOLR={core:'#516a8f',keep:'#5e827b',flex:'#7b8494',rest:'#7b8494'};
    ============================================================ */
 function totals(w){ let total=0,done=0; planOf(w).d.forEach((day,di)=>effectiveSessions(w,di).forEach(s=>{ if(s.rest||s.skip)return; total++; if(s.done)done++; })); return {total,done}; }
 
-function render(){ mode==='week'?renderWeek():renderOv(); renderFoot(); }
+function render(){ applyWeather(); mode==='week'?renderWeek():renderOv(); renderFoot(); }
 window.setMode=m=>{mode=m;$('#segWeek').className=m==='week'?'on':'';$('#segOv').className=m==='ov'?'on':'';$('#weekView').style.display=m==='week'?'block':'none';$('#ovView').style.display=m==='ov'?'block':'none';render();};
 window.toggle=(di,si)=>{const k=cur+'_'+di+'_'+si;checks[k]=!checks[k];push();render();};
 window.exAct=(id,yes)=>{bonus[id]=yes?1:0;push();renderWeek();};
@@ -614,8 +624,9 @@ function renderOv(){
 }
 
 function renderFoot(){
-  const opts=[['clear','晴'],['rain','雨'],['typhoon','颱風']];
-  $('#foot').innerHTML=`Challenge Taiwan 226 · 2027-04-24<div style="margin-top:8px;font-size:10px;color:var(--hint)">天氣自動取自 CWA · 手動可臨時覆寫</div><div class="wsim">${opts.map(o=>`<button class="${weather.level===o[0]?'on':''}" onclick="setWsim('${o[0]}')">${o[1]}</button>`).join('')}</div>`;
+  const opts=[['auto','自動'],['clear','晴'],['rain','雨'],['typhoon','颱風']];
+  const sel=wxOverride||'auto';
+  $('#foot').innerHTML=`Challenge Taiwan 226 · 2027-04-24<div style="margin-top:8px;font-size:10px;color:var(--hint)">天氣自動取自 CWA（${activeCity()}）· 可臨時覆寫</div><div class="wsim">${opts.map(o=>`<button class="${sel===o[0]?'on':''}" onclick="setWsim('${o[0]}')">${o[1]}</button>`).join('')}</div>`;
 }
 
 function fmtKm(a){return a.distance_km?a.distance_km.toFixed(1)+'k':'';}
@@ -724,7 +735,7 @@ function startSync(){
   },()=>{});
   // 天氣：n8n 抓 CWA 寫進 weather/current，這裡自動讀（不存在就維持預設 clear）
   _unsubWx=db.collection('weather').doc('current').onSnapshot(doc=>{
-    if(doc.exists){const w=doc.data();if(w&&w.level){weather.level=w.level;weather.pop=(w.pop??null);weather.wx=(w.wx||'');localStorage.setItem('tp_wsim',JSON.stringify(w.level));render();}}
+    if(doc.exists){const w=doc.data();weatherByCity=w.byCity||w.cities||{};render();}
   },()=>{});
 }
 function stopSync(){if(_unsubDoc){_unsubDoc();_unsubDoc=null;}if(_unsubActs){_unsubActs();_unsubActs=null;}if(_unsubWx){_unsubWx();_unsubWx=null;}}

@@ -13,5 +13,11 @@ service cloud.firestore {
         allow write: if false;   // 只有 n8n（Admin）能寫
       }
     }
+
+    // 全域天氣：n8n 抓 CWA 寫 weather/current（Admin 繞過規則），登入者可讀。
+    match /weather/{doc} {
+      allow read:  if request.auth != null;
+      allow write: if false;
+    }
   }
 }

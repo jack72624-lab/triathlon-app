@@ -345,7 +345,7 @@ function startSync(){
     setSync('synced');
   },()=>setSync('offline'));
   _unsubActs=db.collection('tri_users').doc(currentUser.uid).collection('activities').orderBy('date','desc').onSnapshot(snap=>{
-    acts=snap.docs.map(x=>({id:x.id,...x.data()}));render();
+    acts=snap.docs.map(x=>{const d=x.data();let dt=d.date;if(dt&&dt.toDate)dt=dt.toDate().toISOString().slice(0,10);return {id:x.id,...d,date:dt};});render();
   },()=>{});
 }
 function stopSync(){if(_unsubDoc){_unsubDoc();_unsubDoc=null;}if(_unsubActs){_unsubActs();_unsubActs=null;}}

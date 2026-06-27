@@ -7,3 +7,6 @@ node_modules/
 firebase-debug.log
 serviceAccount*.json
 *-credentials.json
+
+# 設計預覽版不上 GitHub（本機用）
+design-preview.html

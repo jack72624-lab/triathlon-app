@@ -29,9 +29,9 @@
    });
    ```
 5. **Firestore 寫入**（Google Firebase Cloud Firestore 節點，或 HTTP + service account token）：
-   - 文件路徑 `users/<uid>/activities/<id>`，**用 set/merge（idempotent，重跑不會重複）**。
+   - 文件路徑 `tri_users/<uid>/activities/<id>`，**用 set/merge（idempotent，重跑不會重複）**。
 6. **寫 training-log.csv**（給 Claude 週回顧）：Append 一列到 `~/Downloads/Claude Agent/data/training-log.csv`，
    欄位 `date,type,distance_km,moving_time_s,avg_hr,avg_watts,elevation,rpe`（沿用 weight-log/food-log 模式）。
 
 ## 之後想 always-on
-把這個 workflow 的邏輯搬進 Firebase 排程 Cloud Function（同樣寫 `users/<uid>/activities`）即可，App 與資料結構不動（見 PLAN.md「設計鐵則：抓取器是可替換零件」）。
+把這個 workflow 的邏輯搬進 Firebase 排程 Cloud Function（同樣寫 `tri_users/<uid>/activities`）即可，App 與資料結構不動（見 PLAN.md「設計鐵則：抓取器是可替換零件」）。

@@ -1,10 +1,11 @@
 rules_version = '2';
-// 三鐵 App Firestore 規則：每人只能讀寫自己的資料。
-// activities 由 n8n 用 service account（Admin SDK）寫入，會繞過規則；
-// App 端只需「讀」自己的 activities，所以 write 設 false。
+// 三鐵 App Firestore 規則。用獨立 collection `tri_users`，與收入分配的 `users` 不衝突。
+// ⚠️ 共用收入分配專案時：把下面 `match /tri_users/{uid}` 這個區塊「加進」現有規則的
+//    documents{} 內，**別整份覆蓋**（會洗掉 users 的記帳規則）。獨立專案則整份貼上即可。
+// activities 由 n8n 用 service account（Admin SDK）寫入會繞過規則；App 端只需「讀」。
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid} {
+    match /tri_users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
 
       match /activities/{actId} {

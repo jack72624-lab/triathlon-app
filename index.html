@@ -311,12 +311,12 @@ window.toggleMenu=()=>$('#user-menu').classList.toggle('open');
 // ── 雲端：Firebase Auth + Firestore（沿用收入分配）──
 function startSync(){
   if(!currentUser)return;setSync('syncing');
-  _unsubDoc=db.collection('users').doc(currentUser.uid).onSnapshot(doc=>{
+  _unsubDoc=db.collection('tri_users').doc(currentUser.uid).onSnapshot(doc=>{
     if(doc.exists){const d=doc.data();checks=d.checks||{};bonus=d.bonus||{};saveLocal();
       if(_recentWrite){_recentWrite=false;setSync('synced');return;} render();}
     setSync('synced');
   },()=>setSync('offline'));
-  _unsubActs=db.collection('users').doc(currentUser.uid).collection('activities').orderBy('date','desc').onSnapshot(snap=>{
+  _unsubActs=db.collection('tri_users').doc(currentUser.uid).collection('activities').orderBy('date','desc').onSnapshot(snap=>{
     acts=snap.docs.map(x=>({id:x.id,...x.data()}));render();
   },()=>{});
 }
@@ -325,7 +325,7 @@ function push(){
   if(!CLOUD||!currentUser)return;
   clearTimeout(_pushTimer);
   _pushTimer=setTimeout(async()=>{setSync('syncing');_recentWrite=true;
-    try{await db.collection('users').doc(currentUser.uid).set({checks,bonus,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});setSync('synced');}
+    try{await db.collection('tri_users').doc(currentUser.uid).set({checks,bonus,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});setSync('synced');}
     catch{_recentWrite=false;setSync('offline');}
     setTimeout(()=>{_recentWrite=false;},1500);
   },600);

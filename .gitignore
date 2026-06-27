@@ -10,3 +10,6 @@ serviceAccount*.json
 
 # 設計預覽版不上 GitHub（本機用）
 design-preview.html
+
+# 整合前備份（本機保險，不進 repo）
+*.bak-*

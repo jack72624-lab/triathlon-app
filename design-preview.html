@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  DESIGN PREVIEW — no login, no Firebase, sample data.
+  Restyle THIS (CSS + class names). Same markup/classes as the real index.html,
+  so styling ports straight back. Logic lives in index.html — don't worry about it here.
+  Keep element ids and class names if you want zero re-wiring; see DESIGN-BRIEF.md §6.
+-->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tri Plan — design preview</title>
+<meta name="theme-color" content="#14171d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --k900:#15171c; --k800:#22262d; --k700:#363b44; --k500:#646b78; --k400:#9098a4;
+  --k300:#b8bec8; --k200:#d4d9e0; --k100:#e6e9ee; --k50:#f1f3f6; --k0:#fff;
+  --bg:#f4f5f7; --card:#fff; --border:#e6e8ec; --text:var(--k900); --r:16px;
+  --sh:0 1px 2px rgba(16,18,24,.04),0 2px 8px rgba(16,18,24,.05);
+  --sh-sm:0 1px 2px rgba(16,18,24,.06);
+  --core:#c2566b; --keep:#4a73a8; --flex:#9098a4; --rest:#b8bec8;
+  --done:#4e9d77; --miss:#c2566b; --bonus:#c98a3e; --strava:#fc5200;
+  --safe-top:env(safe-area-inset-top,0px); --safe-bot:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Manrope","Helvetica Neue",sans-serif;background:var(--bg);color:var(--text)}
+.num{font-family:"Manrope",-apple-system,sans-serif;font-variant-numeric:tabular-nums}
+
+/* Auth */
+#auth{position:fixed;inset:0;background:linear-gradient(160deg,#0f1020 0%,#1e2038 60%,#0f1020 100%);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(60px + var(--safe-top)) 32px calc(40px + var(--safe-bot));transition:opacity .4s}
+#auth.gone{opacity:0;pointer-events:none}
+.auth-icon{width:64px;height:64px;background:rgba(255,255,255,.08);border-radius:16px;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;margin-bottom:24px}
+.auth-title{font-family:"Manrope";font-size:26px;font-weight:800;color:#f5f2ef;letter-spacing:-.5px;margin-bottom:8px}
+.auth-sub{font-size:14px;color:var(--k400);text-align:center;line-height:1.6;margin-bottom:44px;max-width:280px}
+.btn-google{display:flex;align-items:center;gap:12px;background:#f5f2ef;color:#0f1020;border:none;border-radius:14px;padding:15px 24px;font-size:15px;font-weight:600;cursor:pointer;width:100%;max-width:300px;justify-content:center;box-shadow:0 4px 20px rgba(0,0,0,.3);transition:transform .12s}
+.btn-google:active{transform:scale(.97)}
+.auth-note{font-size:11px;color:var(--k500);text-align:center;margin-top:20px;line-height:1.6;max-width:290px}
+.mode-pill{font-size:10px;color:#cdb98a;background:rgba(201,138,62,.16);border:1px solid rgba(201,138,62,.3);padding:3px 9px;border-radius:99px;margin-bottom:20px;letter-spacing:.06em}
+
+/* Shell + nav */
+#shell{display:none;flex-direction:column;height:100%;padding-top:var(--safe-top)}
+#shell.on{display:flex}
+.nav{background:linear-gradient(160deg,#0f1020,#1e2038);padding:14px 18px 12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.07);position:relative}
+.nav-left{display:flex;align-items:center;gap:10px}
+.nav-icon{width:30px;height:30px;background:rgba(255,255,255,.08);border-radius:8px;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center}
+.nav-title{font-family:"Manrope";font-size:15px;font-weight:700;color:#f5f2ef;letter-spacing:.3px}
+.nav-sub{font-size:10px;color:var(--k400);margin-top:1px}
+.nav-right{display:flex;align-items:center;gap:8px}
+.sync-badge{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:#6a8fae;padding:4px 9px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09)}
+.sync-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.user-btn{width:30px;height:30px;border-radius:50%;overflow:hidden;border:1.5px solid rgba(255,255,255,.25);cursor:pointer;background:#565250;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.user-initial{font-size:12px;font-weight:700;color:rgba(255,255,255,.85)}
+#user-menu{position:absolute;top:calc(100% + 8px);right:14px;min-width:200px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.2);z-index:50;overflow:hidden;opacity:0;transform:scale(.95) translateY(-6px);transform-origin:top right;pointer-events:none;transition:.18s}
+#user-menu.open{opacity:1;transform:none;pointer-events:auto}
+.menu-u{padding:13px 15px;border-bottom:1px solid var(--border)}
+.menu-name{font-size:14px;font-weight:600} .menu-email{font-size:11px;color:var(--k500);margin-top:2px;word-break:break-all}
+.menu-item{padding:12px 15px;font-size:14px;cursor:pointer} .menu-item:active{background:var(--k50)}
+.scroll{flex:1;overflow-y:auto;padding:14px 16px calc(40px + var(--safe-bot));-webkit-overflow-scrolling:touch}
+
+/* Segmented */
+.seg{display:flex;gap:4px;background:var(--k100);padding:3px;border-radius:11px;margin-bottom:14px}
+.seg button{flex:1;border:none;background:none;padding:8px 0;font-size:13px;font-weight:600;color:var(--k500);border-radius:8px;cursor:pointer;font-family:inherit}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:var(--sh-sm)}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh)}
+.sec-label{font-size:11px;font-weight:700;color:var(--k500);letter-spacing:.07em;margin:18px 4px 9px;display:flex;align-items:center;gap:7px;text-transform:uppercase}
+.sec-label::before{content:"";width:3px;height:12px;background:var(--k400);border-radius:2px}
+.wk-head{padding:16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.wk-title{font-family:"Manrope";font-size:19px;font-weight:800;letter-spacing:-.3px}
+.wk-meta{font-size:12px;color:var(--k500);margin-top:4px}
+.wk-ring{position:relative;width:54px;height:54px;flex-shrink:0}
+.wk-ring svg{transform:rotate(-90deg)}
+.wk-ring-c{transition:stroke-dashoffset .5s cubic-bezier(.4,0,.2,1)}
+.wk-ring-t{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:"Manrope";font-weight:800;font-size:14px;color:var(--done)}
+
+/* Day + sessions */
+.day{display:flex;gap:11px;align-items:stretch;padding:11px 14px;border-bottom:1px solid var(--border)}
+.day:last-child{border-bottom:none}
+.day-l{flex:0 0 4px;border-radius:99px;background:var(--rest)}
+.day.core .day-l{background:var(--core)} .day.keep .day-l{background:var(--keep)}
+.day.flex .day-l{background:var(--flex)} .day.rest .day-l{background:var(--rest)}
+.dname{flex:0 0 34px;font-weight:700;font-size:12px;color:var(--k500);padding-top:11px;text-transform:uppercase;letter-spacing:.04em}
+.dsess{flex:1;min-width:0}
+.sess{display:flex;align-items:center;gap:10px;padding:7px 0}
+.sess+.sess{border-top:1px dashed var(--k100)}
+.sess-b{flex:1;min-width:0}
+.sess-t{font-size:14px;font-weight:600}
+.sess.done .sess-t{text-decoration:line-through;text-decoration-color:var(--k300);color:var(--k400)}
+.sess-rest .sess-t{color:var(--k400);font-weight:500}
+.dmeta{display:flex;gap:6px;align-items:center;margin-top:3px;flex-wrap:wrap}
+.pill{font-size:9.5px;padding:1.5px 7px;border-radius:99px;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.pill.core{background:var(--core)} .pill.keep{background:var(--keep)} .pill.flex{background:var(--flex)} .pill.rest{background:var(--rest);color:#3a3f48}
+.tag{font-size:9.5px;padding:1.5px 7px;border-radius:99px;background:#fbf3e6;color:#b06a00;text-transform:uppercase}
+.chk-sm{flex:0 0 24px;width:24px;height:24px;border-radius:7px;border:2px solid var(--k200);background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .1s,background .15s,border-color .15s}
+.chk-sm:active{transform:scale(.84)}
+.chk-sm svg{width:13px;height:13px;stroke:#fff;opacity:0}
+.chk-sm.on{background:var(--done);border-color:var(--done)} .chk-sm.on svg{opacity:1}
+
+/* Strava */
+.sv-sum{display:flex;gap:16px;padding:11px 15px;border-bottom:1px solid var(--border);font-size:12px;color:var(--k500)}
+.sv-sum b{font-family:"Manrope";font-size:14px}
+.c-match{color:var(--done)} .c-bonus{color:var(--bonus)} .c-miss{color:var(--miss)}
+.act{display:flex;align-items:stretch;border-bottom:1px solid var(--border)}
+.act:last-child{border-bottom:none}
+.act-l{flex:0 0 3px;border-radius:99px;margin:12px 0}
+.act-in{flex:1;display:flex;gap:10px;align-items:center;padding:12px 14px;min-width:0}
+.act-ic{width:30px;height:30px;border-radius:8px;background:#fff0e8;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.act-b{flex:1;min-width:0}
+.act-t{font-size:14px;font-weight:600}
+.act-s{font-size:11.5px;color:var(--k500);margin-top:2px}
+.act-st{font-size:9.5px;padding:2px 8px;border-radius:99px;font-weight:700;flex-shrink:0;align-self:center;margin-right:14px;text-transform:uppercase}
+.st-match{background:#e7f4ee;color:var(--done)} .st-bonus{background:#fbf1e3;color:var(--bonus)}
+.bonus-act{display:flex;gap:7px;margin-top:9px}
+.bonus-act button{flex:1;padding:7px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--border)}
+.b-yes{background:var(--k900);color:#fff;border:none} .b-no{background:var(--card);color:var(--k500)}
+.miss-row{padding:11px 15px;font-size:12.5px;color:var(--miss);background:#fdf3f4;border-radius:0 0 var(--r) var(--r)}
+.empty{padding:18px 14px;font-size:12.5px;color:var(--k400);text-align:center}
+
+/* legend / overview */
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin:10px 4px 0;font-size:11px;color:var(--k500)}
+.legend span{display:flex;align-items:center;gap:5px}
+.dot{width:9px;height:9px;border-radius:99px;display:inline-block}
+.ov-cap{font-size:12px;color:var(--k500);margin:2px 4px 10px;line-height:1.5}
+.ovrow{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer}
+.ovrow:last-child{border-bottom:none}
+.ovrow.rec{background:var(--k50)}
+.ovrow.full .ovbar i{background:var(--done)}
+.ovnum{font-family:"Manrope";font-weight:800;font-size:14px;min-width:48px}
+.ovtype{font-size:10px;color:var(--k500);display:block;margin-top:1px;font-weight:500}
+.ovmid{flex:1;min-width:0}
+.ovdate{font-size:11.5px;color:var(--k500)}
+.ovbar{height:5px;background:var(--k100);border-radius:99px;overflow:hidden;margin-top:6px}
+.ovbar i{display:block;height:100%;background:var(--k300);border-radius:99px}
+.ovdone{font-family:"Manrope";font-size:12px;color:var(--k500);flex:0 0 auto}
+.ovdone b{color:var(--done)}
+.foot{text-align:center;font-size:11px;color:var(--k400);margin-top:22px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div id="auth">
+  <div class="mode-pill" id="mode-pill">Design preview · no login</div>
+  <div class="auth-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#f5f2ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></div>
+  <div class="auth-title">Tri Plan</div>
+  <div class="auth-sub">Challenge Taiwan 226 · Base phase<br>Check off · view plan · auto-match Strava</div>
+  <button class="btn-google" id="btn-signin">
+    <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z"/></svg>
+    <span id="signin-label">Enter (preview)</span>
+  </button>
+  <div class="auth-note">Design preview — no login, sample data. Restyle this; the real app keeps the same markup.</div>
+</div>
+
+<div id="shell">
+  <div class="nav">
+    <div class="nav-left">
+      <div class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f5f2ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></div>
+      <div><div class="nav-title">Tri Plan</div><div class="nav-sub">CT226 · Base</div></div>
+    </div>
+    <div class="nav-right">
+      <div class="sync-badge" id="sync"><span class="sync-dot"></span><span id="sync-text">Synced</span></div>
+      <button class="user-btn" id="user-btn" onclick="toggleMenu()"><span class="user-initial">J</span></button>
+    </div>
+    <div id="user-menu">
+      <div class="menu-u"><div class="menu-name" id="menu-name">Jack</div><div class="menu-email" id="menu-email">jack72624@gmail.com</div></div>
+      <div class="menu-item" onclick="doSignOut()">Sign out</div>
+    </div>
+  </div>
+  <div class="scroll">
+    <div class="seg"><button id="segWeek" class="on" onclick="setMode('week')">This Week</button><button id="segOv" onclick="setMode('ov')">Overview</button></div>
+    <div id="weekView"></div>
+    <div id="ovView" style="display:none"></div>
+    <div class="foot" id="foot">Design preview · sample data</div>
+  </div>
+</div>
+
+<script>
+const T={core:'Key',keep:'Keep',flex:'Flex',rest:'Rest'};
+const W={
+ 1:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 4k easy · strides','core'],['Bike 1:00 Z2','keep'],['Run 4k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 1:30 + Brick run 10m','core'],['Long run 8k','core']]},
+ 2:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 5k easy · strides','core'],['FTP/ramp test','keep','test'],['Run 5k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 1:45 + Brick run 10m','core'],['Long run 9k','core']]},
+ 3:{type:'Recovery',d:[['Swim 0:40 + Strength 30–45m','keep'],['Run 4k easy · strides','core'],['Bike 0:50 Z2','keep'],['Run 4k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 1:30 + Brick run 10m','core'],['Long run 7k','core']]},
+ 4:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['5k time trial','core','test'],['Bike 1:00 Z2','keep'],['Run 6k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:00 + Brick run 12m','core'],['Long run 10k','core']]},
+ 5:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 6k easy · strides','core'],['Bike 1:00 Z2','keep'],['Run 6k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:00 + Brick run 15m','core'],['Long run 11k','core']]},
+ 6:{type:'Recovery',d:[['Swim 0:40 + Strength 30–45m','keep'],['Run 5k easy · strides','core'],['Bike 0:50 Z2','keep'],['Run 5k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 1:45 + Brick run 12m','core'],['Long run 9k','core']]},
+ 7:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 6k easy · strides','core'],['Bike 1:10 Z2','keep'],['Run 7k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:15 + Brick run 15m','core'],['Long run 12k','core']]},
+ 8:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 7k easy · strides','core'],['Bike 1:10 Z2','keep'],['Run 7k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:15 + Brick run 18m','core'],['Long run 13k','core']]},
+ 9:{type:'Recovery',d:[['Swim 0:40 + Strength 30–45m','keep'],['Run 5k easy · strides','core'],['Bike 1:00 Z2','keep'],['Run 6k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:00 + Brick run 12m','core'],['Long run 10k','core']]},
+ 10:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 7k easy · strides','core'],['Bike 1:15 Z2','keep'],['Run 8k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:30 + Brick run 18m','core'],['Long run 13k','core']]},
+ 11:{type:'Peak',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 7k easy · strides','core'],['Bike 1:15 Z2','keep'],['Run 8k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:30 + Brick run 20m','core'],['Long run 14k','core']]},
+ 12:{type:'Recovery',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 6k easy · strides','core'],['Bike 1:00 Z2','keep'],['Run 6k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:00 + Brick run 15m','core'],['Long run 11k','core']]},
+};
+const DATE={1:'Jun 29–Jul 5',2:'Jul 6–12',3:'Jul 13–19',4:'Jul 20–26',5:'Jul 27–Aug 2',6:'Aug 3–9',7:'Aug 10–16',8:'Aug 17–23',9:'Aug 24–30',10:'Aug 31–Sep 6',11:'Sep 7–13',12:'Sep 14–20'};
+const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+// 預先勾幾項，讓預覽有進度 / 完成狀態可看
+let checks={'1_0_0':1,'1_0_1':1,'1_1_0':1,'1_2_0':1};
+let bonus={};
+// sample Strava：對應 + bonus
+let acts=[
+ {id:'s1',date:'2026-06-30',type:'Run',distance_km:5.2,moving_time_s:1930,avg_hr:145},
+ {id:'s2',date:'2026-07-02',type:'Run',distance_km:7.0,moving_time_s:2550,avg_hr:148},
+ {id:'s3',date:'2026-07-05',type:'Run',distance_km:8.3,moving_time_s:3120,avg_hr:150},
+ {id:'s4',date:'2026-07-05',type:'Run',distance_km:3.1,moving_time_s:1180,avg_hr:138},
+ {id:'s5',date:'2026-07-04',type:'Ride',distance_km:46,moving_time_s:6720,avg_watts:168},
+];
+const WK_START=new Date('2026-06-29T00:00:00');
+let cur=1, mode='week';
+const $=s=>document.querySelector(s);
+
+function sessionsOf(dayIdx,day){
+  const lv=day[1];
+  return day[0].split(' + ').map((p,i)=>{
+    p=p.trim(); let l=lv, rest=false;
+    if(p==='Rest') rest=true;
+    else if(/Calf/.test(p)) l='flex';
+    else if(/Strength/.test(p)) l='keep';
+    else if(/Brick/.test(p)) l='core';
+    else if(i>0) l='keep';
+    return {t:p,lv:l,rest,test:i===0&&day[2]==='test'};
+  });
+}
+function totalSess(w){let n=0;W[w].d.forEach((d,i)=>sessionsOf(i,d).forEach(s=>{if(!s.rest)n++;}));return n;}
+function wkDone(w){let n=0;W[w].d.forEach((d,i)=>sessionsOf(i,d).forEach((s,si)=>{if(!s.rest&&checks[w+'_'+i+'_'+si])n++;}));return n;}
+function discOf(text){const t=text.toLowerCase();if(t.includes('swim'))return'swim';if(t.includes('bike')||t.includes('ftp')||t.includes('ramp'))return'ride';if(t.includes('run')||t.includes('time trial'))return'run';return null;}
+function poolOf(w){const p={run:0,ride:0,swim:0};W[w].d.forEach(d=>{const k=discOf(d[0]);if(k)p[k]++;});return p;}
+function weekOf(dateStr){const d=new Date(dateStr+'T00:00:00');return Math.floor((d-WK_START)/(7*864e5))+1;}
+function typeToDisc(t){return t==='Run'?'run':(t==='Ride'||t==='VirtualRide')?'ride':t==='Swim'?'swim':null;}
+function matchWeek(w){
+  const list=acts.filter(a=>weekOf(a.date)===w);
+  const pool=poolOf(w),used={run:0,ride:0,swim:0};
+  const out=list.map(a=>{const k=typeToDisc(a.type);let st='bonus';if(k&&used[k]<pool[k]){used[k]++;st='match';}return {...a,status:st};});
+  const miss={run:pool.run-used.run,ride:pool.ride-used.ride,swim:pool.swim-used.swim};
+  return {out,miss};
+}
+window.toggle=(di,si)=>{const k=cur+'_'+di+'_'+si;checks[k]=!checks[k];renderWeek();};
+window.exAct=(id,yes)=>{bonus[id]=yes?1:0;renderWeek();};
+
+function fmtKm(a){return a.distance_km?a.distance_km.toFixed(1)+'k':'';}
+function fmtTime(s){if(!s)return'';const m=Math.round(s/60);return m>=60?Math.floor(m/60)+':'+String(m%60).padStart(2,'0'):m+'m';}
+function fmtExtra(a){const x=[];if(a.avg_hr)x.push('HR'+a.avg_hr);if(a.avg_watts)x.push(a.avg_watts+'W');if(a.rpe)x.push('RPE'+a.rpe);return x.join(' · ');}
+function render(){mode==='week'?renderWeek():renderOv();}
+window.setMode=m=>{mode=m;$('#segWeek').className=m==='week'?'on':'';$('#segOv').className=m==='ov'?'on':'';$('#weekView').style.display=m==='week'?'block':'none';$('#ovView').style.display=m==='ov'?'block':'none';render();};
+
+function renderWeek(){
+  const total=totalSess(cur), n=wkDone(cur), pct=total?n/total:0;
+  const C=2*Math.PI*22, off=C*(1-pct);
+  let h=`<div class="card wk-head"><div><div class="wk-title num">Week ${cur}</div><div class="wk-meta">${DATE[cur]} · ${W[cur].type} · ${n}/${total} done</div></div><div class="wk-ring"><svg width="54" height="54"><circle cx="27" cy="27" r="22" fill="none" stroke="var(--k100)" stroke-width="5"/><circle class="wk-ring-c" cx="27" cy="27" r="22" fill="none" stroke="var(--done)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg><div class="wk-ring-t num">${Math.round(pct*100)}</div></div></div>`;
+  h+=`<div class="card">`;
+  W[cur].d.forEach((day,di)=>{
+    const sess=sessionsOf(di,day);
+    h+=`<div class="day ${day[1]}"><div class="day-l"></div><div class="dname">${DAYS[di]}</div><div class="dsess">`;
+    sess.forEach((s,si)=>{
+      if(s.rest){h+=`<div class="sess sess-rest"><div class="sess-b"><div class="sess-t">${s.t}</div></div></div>`;return;}
+      const isDone=!!checks[cur+'_'+di+'_'+si];
+      h+=`<div class="sess ${isDone?'done':''}"><div class="sess-b"><div class="sess-t">${s.t}</div><div class="dmeta"><span class="pill ${s.lv}">${T[s.lv]}</span>${s.test?'<span class="tag">test</span>':''}</div></div><div class="chk-sm ${isDone?'on':''}" onclick="toggle(${di},${si})"><svg viewBox="0 0 24 24" fill="none" stroke-width="3.5"><path d="M5 13l4 4L19 7"/></svg></div></div>`;
+    });
+    h+=`</div></div>`;
+  });
+  h+=`</div>`;
+  const {out,miss}=matchWeek(cur);
+  const nM=out.filter(a=>a.status==='match').length, nB=out.length-nM;
+  const nMiss=Math.max(0,miss.run)+Math.max(0,miss.ride)+Math.max(0,miss.swim);
+  h+=`<div class="sec-label">Strava this week</div><div class="card">`;
+  h+=`<div class="sv-sum"><span>Matched <b class="c-match">${nM}</b></span><span>Bonus <b class="c-bonus">${nB}</b></span><span>Missing <b class="c-miss">${nMiss}</b></span></div>`;
+  if(!out.length) h+=`<div class="empty">No activities yet (sample in Week 1)</div>`;
+  out.forEach(a=>{
+    const isB=a.status==='bonus', decided=isB&&(a.id in bonus);
+    const accent=isB?'var(--bonus)':'var(--done)';
+    const stCls=isB?'st-bonus':'st-match', stTx=isB?(decided?(bonus[a.id]?'counted':'skipped'):'bonus'):'match';
+    h+=`<div class="act"><div class="act-l" style="background:${accent}"></div><div class="act-in"><div class="act-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="var(--strava)"><path d="M15.4 16.97l-2.2-4.4-2.2 4.4H7.5L13.2 5l5.7 11.97h-3.5z"/></svg></div><div class="act-b"><div class="act-t">${a.type} ${fmtKm(a)} · ${fmtTime(a.moving_time_s)}</div><div class="act-s">${a.date}${fmtExtra(a)?' · '+fmtExtra(a):''}</div>${isB&&!decided?`<div class="bonus-act"><button class="b-yes" onclick="exAct('${a.id}',1)">Count</button><button class="b-no" onclick="exAct('${a.id}',0)">Skip</button></div>`:''}</div></div><span class="act-st ${stCls}">${stTx}</span></div>`;
+  });
+  h+=`</div>`;
+  h+=`<div class="legend"><span><i class="dot" style="background:var(--core)"></i>Key</span><span><i class="dot" style="background:var(--keep)"></i>Keep</span><span><i class="dot" style="background:var(--flex)"></i>Flex</span><span><i class="dot" style="background:var(--done)"></i>Matched</span><span><i class="dot" style="background:var(--bonus)"></i>Bonus</span></div>`;
+  $('#weekView').innerHTML=h;
+}
+function renderOv(){
+  let h=`<div class="ov-cap">Consistency Base · 12 weeks · Jun 29 – Sep 20. Tap a week. Shaded = recovery (good for Kaohsiung trips).</div><div class="card">`;
+  for(let w=1;w<=12;w++){
+    const rec=W[w].type==='Recovery',total=totalSess(w),n=wkDone(w),pct=total?Math.round(n/total*100):0;
+    const run=W[w].d[6][0].replace('Long run ',''),ride=W[w].d[5][0].split(' + ')[0].replace('Long bike ','');
+    h+=`<div class="ovrow ${rec?'rec':''} ${n===total?'full':''}" onclick="cur=${w};setMode('week')"><div><span class="ovnum">Week ${w}</span><span class="ovtype">${W[w].type}</span></div><div class="ovmid"><div class="ovdate">${DATE[w]} · Run ${run} · Bike ${ride}</div><div class="ovbar"><i style="width:${pct}%"></i></div></div><div class="ovdone num"><b>${n}</b>/${total}</div></div>`;
+  }
+  h+=`</div>`;
+  $('#ovView').innerHTML=h;
+}
+function enter(){$('#auth').classList.add('gone');$('#shell').classList.add('on');setTimeout(()=>$('#auth').style.display='none',420);render();}
+window.toggleMenu=()=>$('#user-menu').classList.toggle('open');
+window.doSignOut=()=>{toggleMenu();$('#shell').classList.remove('on');$('#auth').style.display='flex';$('#auth').classList.remove('gone');};
+$('#btn-signin').onclick=enter;
+</script>
+</body>
+</html>

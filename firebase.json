@@ -1,0 +1,19 @@
+{
+  "hosting": {
+    "site": "tri-jack72624-91e31",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".git/**",
+      ".firebase/**",
+      ".firebaserc",
+      ".gitignore",
+      "**/node_modules/**",
+      "*.md",
+      "*.sh",
+      "*.rules",
+      "*.bak-*",
+      "design-preview.html"
+    ]
+  }
+}

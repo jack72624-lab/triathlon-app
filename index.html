@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <!--
-  三鐵訓練 App — Challenge Taiwan 226
-  打卡(每堂課,雲端同步) + Strava 自動對應當週課表 + 給 Claude 週回顧的資料底。
-  Firebase 設定見 SETUP.md。未貼 firebaseConfig 時自動退本機模式(localStorage)。
-  Auth/Firestore 寫法沿用「收入分配」已驗證版本。
+  Triathlon Plan App — Challenge Taiwan 226
+  Per-session check-off (cloud sync) + Strava week-pool auto-match + data for Claude's weekly review.
+  Firebase config: see SETUP.md. Falls back to local mode (localStorage) if config not pasted.
+  Auth/Firestore reuse the proven "收入分配" version.
 -->
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>三鐵課表</title>
+<title>Tri Plan</title>
 <meta name="theme-color" content="#14171d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -28,7 +28,7 @@
   --safe-top:env(safe-area-inset-top,0px); --safe-bot:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","Helvetica Neue",sans-serif;background:var(--bg);color:var(--text)}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Manrope","Helvetica Neue",sans-serif;background:var(--bg);color:var(--text)}
 .num{font-family:"Manrope",-apple-system,sans-serif;font-variant-numeric:tabular-nums}
 
 /* Auth */
@@ -36,11 +36,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC
 #auth.gone{opacity:0;pointer-events:none}
 .auth-icon{width:64px;height:64px;background:rgba(255,255,255,.08);border-radius:16px;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;margin-bottom:24px}
 .auth-title{font-family:"Manrope";font-size:26px;font-weight:800;color:#f5f2ef;letter-spacing:-.5px;margin-bottom:8px}
-.auth-sub{font-size:14px;color:var(--k400);text-align:center;line-height:1.6;margin-bottom:44px;max-width:260px}
+.auth-sub{font-size:14px;color:var(--k400);text-align:center;line-height:1.6;margin-bottom:44px;max-width:280px}
 .btn-google{display:flex;align-items:center;gap:12px;background:#f5f2ef;color:#0f1020;border:none;border-radius:14px;padding:15px 24px;font-size:15px;font-weight:600;cursor:pointer;width:100%;max-width:300px;justify-content:center;box-shadow:0 4px 20px rgba(0,0,0,.3);transition:transform .12s}
 .btn-google:active{transform:scale(.97)}
-.auth-note{font-size:11px;color:var(--k500);text-align:center;margin-top:20px;line-height:1.6;max-width:280px}
-.mode-pill{font-size:10px;color:#cdb98a;background:rgba(201,138,62,.16);border:1px solid rgba(201,138,62,.3);padding:3px 9px;border-radius:99px;margin-bottom:20px;letter-spacing:.04em}
+.auth-note{font-size:11px;color:var(--k500);text-align:center;margin-top:20px;line-height:1.6;max-width:290px}
+.mode-pill{font-size:10px;color:#cdb98a;background:rgba(201,138,62,.16);border:1px solid rgba(201,138,62,.3);padding:3px 9px;border-radius:99px;margin-bottom:20px;letter-spacing:.06em}
 .auth-spin{width:26px;height:26px;border:2.5px solid rgba(255,255,255,.15);border-top-color:rgba(255,255,255,.7);border-radius:50%;animation:spin .8s linear infinite;display:none}
 #auth.loading .auth-spin{display:block} #auth.loading>:not(.auth-spin){display:none}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -75,10 +75,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC
 
 /* Cards */
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh)}
-.sec-label{font-size:11px;font-weight:700;color:var(--k500);letter-spacing:.07em;margin:18px 4px 9px;display:flex;align-items:center;gap:7px}
+.sec-label{font-size:11px;font-weight:700;color:var(--k500);letter-spacing:.07em;margin:18px 4px 9px;display:flex;align-items:center;gap:7px;text-transform:uppercase}
 .sec-label::before{content:"";width:3px;height:12px;background:var(--k400);border-radius:2px}
-
-/* 週 head + 進度環 */
 .wk-head{padding:16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .wk-title{font-family:"Manrope";font-size:19px;font-weight:800;letter-spacing:-.3px}
 .wk-meta{font-size:12px;color:var(--k500);margin-top:4px}
@@ -87,13 +85,13 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC
 .wk-ring-c{transition:stroke-dashoffset .5s cubic-bezier(.4,0,.2,1)}
 .wk-ring-t{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:"Manrope";font-weight:800;font-size:14px;color:var(--done)}
 
-/* 日 + 每堂課 */
+/* Day + sessions */
 .day{display:flex;gap:11px;align-items:stretch;padding:11px 14px;border-bottom:1px solid var(--border)}
 .day:last-child{border-bottom:none}
 .day-l{flex:0 0 4px;border-radius:99px;background:var(--rest)}
 .day.core .day-l{background:var(--core)} .day.keep .day-l{background:var(--keep)}
 .day.flex .day-l{background:var(--flex)} .day.rest .day-l{background:var(--rest)}
-.dname{flex:0 0 22px;font-weight:700;font-size:15px;padding-top:9px}
+.dname{flex:0 0 34px;font-weight:700;font-size:12px;color:var(--k500);padding-top:11px;text-transform:uppercase;letter-spacing:.04em}
 .dsess{flex:1;min-width:0}
 .sess{display:flex;align-items:center;gap:10px;padding:7px 0}
 .sess+.sess{border-top:1px dashed var(--k100)}
@@ -102,9 +100,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC
 .sess.done .sess-t{text-decoration:line-through;text-decoration-color:var(--k300);color:var(--k400)}
 .sess-rest .sess-t{color:var(--k400);font-weight:500}
 .dmeta{display:flex;gap:6px;align-items:center;margin-top:3px;flex-wrap:wrap}
-.pill{font-size:10px;padding:1.5px 7px;border-radius:99px;color:#fff;font-weight:600}
+.pill{font-size:9.5px;padding:1.5px 7px;border-radius:99px;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
 .pill.core{background:var(--core)} .pill.keep{background:var(--keep)} .pill.flex{background:var(--flex)} .pill.rest{background:var(--rest);color:#3a3f48}
-.tag{font-size:10px;padding:1.5px 7px;border-radius:99px;background:#fbf3e6;color:#b06a00}
+.tag{font-size:9.5px;padding:1.5px 7px;border-radius:99px;background:#fbf3e6;color:#b06a00;text-transform:uppercase}
 .chk-sm{flex:0 0 24px;width:24px;height:24px;border-radius:7px;border:2px solid var(--k200);background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .1s,background .15s,border-color .15s}
 .chk-sm:active{transform:scale(.84)}
 .chk-sm svg{width:13px;height:13px;stroke:#fff;opacity:0}
@@ -114,7 +112,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC
 .sv-sum{display:flex;gap:16px;padding:11px 15px;border-bottom:1px solid var(--border);font-size:12px;color:var(--k500)}
 .sv-sum b{font-family:"Manrope";font-size:14px}
 .c-match{color:var(--done)} .c-bonus{color:var(--bonus)} .c-miss{color:var(--miss)}
-.act{display:flex;gap:0;align-items:stretch;border-bottom:1px solid var(--border)}
+.act{display:flex;align-items:stretch;border-bottom:1px solid var(--border)}
 .act:last-child{border-bottom:none}
 .act-l{flex:0 0 3px;border-radius:99px;margin:12px 0}
 .act-in{flex:1;display:flex;gap:10px;align-items:center;padding:12px 14px;min-width:0}
@@ -122,7 +120,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC
 .act-b{flex:1;min-width:0}
 .act-t{font-size:14px;font-weight:600}
 .act-s{font-size:11.5px;color:var(--k500);margin-top:2px}
-.act-st{font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600;flex-shrink:0;align-self:center;margin-right:14px}
+.act-st{font-size:9.5px;padding:2px 8px;border-radius:99px;font-weight:700;flex-shrink:0;align-self:center;margin-right:14px;text-transform:uppercase}
 .st-match{background:#e7f4ee;color:var(--done)} .st-bonus{background:#fbf1e3;color:var(--bonus)}
 .bonus-act{display:flex;gap:7px;margin-top:9px}
 .bonus-act button{flex:1;padding:7px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--border)}
@@ -139,11 +137,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC
 .ovrow:last-child{border-bottom:none}
 .ovrow.rec{background:var(--k50)}
 .ovrow.full .ovbar i{background:var(--done)}
-.ovnum{font-family:"Manrope";font-weight:800;font-size:15px;min-width:38px}
-.ovtype{font-size:10px;color:var(--k500);display:block;margin-top:1px;font-weight:400}
+.ovnum{font-family:"Manrope";font-weight:800;font-size:14px;min-width:48px}
+.ovtype{font-size:10px;color:var(--k500);display:block;margin-top:1px;font-weight:500}
 .ovmid{flex:1;min-width:0}
 .ovdate{font-size:11.5px;color:var(--k500)}
-.ovkey{font-size:13px;font-weight:600;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ovbar{height:5px;background:var(--k100);border-radius:99px;overflow:hidden;margin-top:6px}
 .ovbar i{display:block;height:100%;background:var(--k300);border-radius:99px}
 .ovdone{font-family:"Manrope";font-size:12px;color:var(--k500);flex:0 0 auto}
@@ -157,11 +154,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC
   <div class="auth-spin"></div>
   <div class="mode-pill" id="mode-pill">CT226</div>
   <div class="auth-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#f5f2ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></div>
-  <div class="auth-title">三鐵課表</div>
-  <div class="auth-sub">Challenge Taiwan 226 · 一致性導入期<br>打卡、看課表、Strava 自動對應</div>
+  <div class="auth-title">Tri Plan</div>
+  <div class="auth-sub">Challenge Taiwan 226 · Base phase<br>Check off · view plan · auto-match Strava</div>
   <button class="btn-google" id="btn-signin">
     <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z"/></svg>
-    <span id="signin-label">用 Google 登入</span>
+    <span id="signin-label">Sign in with Google</span>
   </button>
   <div class="auth-note" id="auth-note"></div>
 </div>
@@ -170,19 +167,19 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC
   <div class="nav">
     <div class="nav-left">
       <div class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f5f2ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></div>
-      <div><div class="nav-title">三鐵課表</div><div class="nav-sub">CT226 · 導入期</div></div>
+      <div><div class="nav-title">Tri Plan</div><div class="nav-sub">CT226 · Base</div></div>
     </div>
     <div class="nav-right">
-      <div class="sync-badge" id="sync"><span class="sync-dot"></span><span id="sync-text">本機</span></div>
+      <div class="sync-badge" id="sync"><span class="sync-dot"></span><span id="sync-text">Local</span></div>
       <button class="user-btn" id="user-btn" onclick="toggleMenu()"><span class="user-initial">J</span></button>
     </div>
     <div id="user-menu">
-      <div class="menu-u"><div class="menu-name" id="menu-name">本機模式</div><div class="menu-email" id="menu-email">未登入</div></div>
-      <div class="menu-item" onclick="doSignOut()">登出</div>
+      <div class="menu-u"><div class="menu-name" id="menu-name">Local mode</div><div class="menu-email" id="menu-email">Not signed in</div></div>
+      <div class="menu-item" onclick="doSignOut()">Sign out</div>
     </div>
   </div>
   <div class="scroll">
-    <div class="seg"><button id="segWeek" class="on" onclick="setMode('week')">本週</button><button id="segOv" onclick="setMode('ov')">月總覽</button></div>
+    <div class="seg"><button id="segWeek" class="on" onclick="setMode('week')">This Week</button><button id="segOv" onclick="setMode('ov')">Overview</button></div>
     <div id="weekView"></div>
     <div id="ovView" style="display:none"></div>
     <div class="foot" id="foot"></div>
@@ -193,10 +190,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
-// ════════════════════════════════════════════
-//  Firebase 設定（共用「收入分配」專案 jack72624-91e31）。
-//  apiKey 為公開的 web 識別碼（非密鑰）；資料靠 Firestore 規則 + 授權網域保護。
-// ════════════════════════════════════════════
+// Firebase config (shares the "收入分配" project jack72624-91e31).
+// apiKey is a public web identifier (not a secret); data is protected by Firestore rules + authorized domains.
 const firebaseConfig = {
   apiKey:            "AIzaSyAn5xTFXcviz9a12nyXwE0sJHmMD7mzRUc",
   authDomain:        "jack72624-91e31.web.app",
@@ -207,25 +202,25 @@ const firebaseConfig = {
   measurementId:     "G-QYVTGNVLZC"
 };
 const CLOUD = !firebaseConfig.apiKey.startsWith('PASTE_');
-// ════════════════════════════════════════════
 
-const T={core:'核心',keep:'維持',flex:'彈性',rest:'休'};
+const T={core:'Key',keep:'Keep',flex:'Flex',rest:'Rest'};
+// Each day = [text, level, testFlag?]. " + " splits into separately-checkable sessions.
 const W={
- 1:{type:'建立',d:[['游 技術/有氧 0:45','keep'],['跑 4k easy','core'],['騎 1:00 Z2','keep'],['跑 4k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 1:30 + brick run 10min','core'],['長跑 8k','core']]},
- 2:{type:'建立',d:[['游 0:45','keep'],['跑 5k easy','core'],['FTP/ramp 測試','keep','test'],['跑 5k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 1:45 + brick run 10min','core'],['長跑 9k','core']]},
- 3:{type:'恢復',d:[['游 0:40','keep'],['跑 4k easy','core'],['騎 0:50 Z2','keep'],['跑 4k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 1:30 + brick run 10min','core'],['長跑 7k','core']]},
- 4:{type:'建立',d:[['游 0:45','keep'],['5k 計時','core','test'],['騎 1:00 Z2','keep'],['跑 6k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:00 + brick run 12min','core'],['長跑 10k','core']]},
- 5:{type:'建立',d:[['游 0:45','keep'],['跑 6k easy','core'],['騎 1:00 Z2','keep'],['跑 6k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:00 + brick run 15min','core'],['長跑 11k','core']]},
- 6:{type:'恢復',d:[['游 0:40','keep'],['跑 5k easy','core'],['騎 0:50 Z2','keep'],['跑 5k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 1:45 + brick run 12min','core'],['長跑 9k','core']]},
- 7:{type:'建立',d:[['游 0:45','keep'],['跑 6k easy','core'],['騎 1:10 Z2','keep'],['跑 7k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:15 + brick run 15min','core'],['長跑 12k','core']]},
- 8:{type:'建立',d:[['游 0:45','keep'],['跑 7k easy','core'],['騎 1:10 Z2','keep'],['跑 7k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:15 + brick run 18min','core'],['長跑 13k','core']]},
- 9:{type:'恢復',d:[['游 0:40','keep'],['跑 5k easy','core'],['騎 1:00 Z2','keep'],['跑 6k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:00 + brick run 12min','core'],['長跑 10k','core']]},
- 10:{type:'建立',d:[['游 0:45','keep'],['跑 7k easy','core'],['騎 1:15 Z2','keep'],['跑 8k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:30 + brick run 18min','core'],['長跑 13k','core']]},
- 11:{type:'高峰',d:[['游 0:45','keep'],['跑 7k easy','core'],['騎 1:15 Z2','keep'],['跑 8k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:30 + brick run 20min','core'],['長跑 14k','core']]},
- 12:{type:'恢復/銜接',d:[['游 0:45','keep'],['跑 6k easy','core'],['騎 1:00 Z2','keep'],['跑 6k easy + 核心肌群','core'],['休 + 小腿放鬆','rest'],['長騎 2:00 + brick run 15min','core'],['長跑 11k','core']]},
+ 1:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 4k easy · strides','core'],['Bike 1:00 Z2','keep'],['Run 4k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 1:30 + Brick run 10m','core'],['Long run 8k','core']]},
+ 2:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 5k easy · strides','core'],['FTP/ramp test','keep','test'],['Run 5k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 1:45 + Brick run 10m','core'],['Long run 9k','core']]},
+ 3:{type:'Recovery',d:[['Swim 0:40 + Strength 30–45m','keep'],['Run 4k easy · strides','core'],['Bike 0:50 Z2','keep'],['Run 4k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 1:30 + Brick run 10m','core'],['Long run 7k','core']]},
+ 4:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['5k time trial','core','test'],['Bike 1:00 Z2','keep'],['Run 6k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:00 + Brick run 12m','core'],['Long run 10k','core']]},
+ 5:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 6k easy · strides','core'],['Bike 1:00 Z2','keep'],['Run 6k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:00 + Brick run 15m','core'],['Long run 11k','core']]},
+ 6:{type:'Recovery',d:[['Swim 0:40 + Strength 30–45m','keep'],['Run 5k easy · strides','core'],['Bike 0:50 Z2','keep'],['Run 5k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 1:45 + Brick run 12m','core'],['Long run 9k','core']]},
+ 7:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 6k easy · strides','core'],['Bike 1:10 Z2','keep'],['Run 7k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:15 + Brick run 15m','core'],['Long run 12k','core']]},
+ 8:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 7k easy · strides','core'],['Bike 1:10 Z2','keep'],['Run 7k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:15 + Brick run 18m','core'],['Long run 13k','core']]},
+ 9:{type:'Recovery',d:[['Swim 0:40 + Strength 30–45m','keep'],['Run 5k easy · strides','core'],['Bike 1:00 Z2','keep'],['Run 6k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:00 + Brick run 12m','core'],['Long run 10k','core']]},
+ 10:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 7k easy · strides','core'],['Bike 1:15 Z2','keep'],['Run 8k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:30 + Brick run 18m','core'],['Long run 13k','core']]},
+ 11:{type:'Peak',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 7k easy · strides','core'],['Bike 1:15 Z2','keep'],['Run 8k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:30 + Brick run 20m','core'],['Long run 14k','core']]},
+ 12:{type:'Recovery',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 6k easy · strides','core'],['Bike 1:00 Z2','keep'],['Run 6k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:00 + Brick run 15m','core'],['Long run 11k','core']]},
 };
-const DATE={1:'6/29–7/5',2:'7/6–7/12',3:'7/13–7/19',4:'7/20–7/26',5:'7/27–8/2',6:'8/3–8/9',7:'8/10–8/16',8:'8/17–8/23',9:'8/24–8/30',10:'8/31–9/6',11:'9/7–9/13',12:'9/14–9/20'};
-const DAYS=['一','二','三','四','五','六','日'];
+const DATE={1:'Jun 29–Jul 5',2:'Jul 6–12',3:'Jul 13–19',4:'Jul 20–26',5:'Jul 27–Aug 2',6:'Aug 3–9',7:'Aug 10–16',8:'Aug 17–23',9:'Aug 24–30',10:'Aug 31–Sep 6',11:'Sep 7–13',12:'Sep 14–20'};
+const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const WK_START=new Date('2026-06-29T00:00:00');
 const SAMPLE_ACTS=[
  {id:'s1',date:'2026-06-30',type:'Run',distance_km:5.2,moving_time_s:1930,avg_hr:145},
@@ -242,14 +237,14 @@ let acts = CLOUD ? [] : SAMPLE_ACTS.slice();
 let _unsubDoc=null,_unsubActs=null,_recentWrite=false,_pushTimer=null;
 const $=s=>document.querySelector(s);
 
-// ── 把一天拆成可勾的每堂課 ──
 function sessionsOf(dayIdx,day){
   const lv=day[1];
   return day[0].split(' + ').map((p,i)=>{
     p=p.trim(); let l=lv, rest=false;
-    if(p==='休') rest=true;
-    else if(/核心肌群|小腿/.test(p)) l='flex';
-    else if(/brick/.test(p)) l='core';
+    if(p==='Rest') rest=true;
+    else if(/Calf/.test(p)) l='flex';
+    else if(/Strength/.test(p)) l='keep';
+    else if(/Brick/.test(p)) l='core';
     else if(i>0) l='keep';
     return {t:p,lv:l,rest,test:i===0&&day[2]==='test'};
   });
@@ -257,20 +252,18 @@ function sessionsOf(dayIdx,day){
 function totalSess(w){let n=0;W[w].d.forEach((d,i)=>sessionsOf(i,d).forEach(s=>{if(!s.rest)n++;}));return n;}
 function wkDone(w){let n=0;W[w].d.forEach((d,i)=>sessionsOf(i,d).forEach((s,si)=>{if(!s.rest&&checks[w+'_'+i+'_'+si])n++;}));return n;}
 
-// ── Strava 當週課池比對 ──
-function discOf(text){
-  if(text.indexOf('游')>=0) return 'swim';
-  if(text.indexOf('長騎')>=0||text.indexOf('FTP')>=0||text.indexOf('ramp')>=0||text.trim().indexOf('騎')===0) return 'ride';
-  if(text.indexOf('跑')>=0||text.indexOf('計時')>=0) return 'run';
-  return null;
-}
+function discOf(text){const t=text.toLowerCase();
+  if(t.includes('swim'))return'swim';
+  if(t.includes('bike')||t.includes('ftp')||t.includes('ramp'))return'ride';
+  if(t.includes('run')||t.includes('time trial'))return'run';
+  return null;}
 function poolOf(w){const p={run:0,ride:0,swim:0};W[w].d.forEach(d=>{const k=discOf(d[0]);if(k)p[k]++;});return p;}
 function weekOf(dateStr){const d=new Date(dateStr+'T00:00:00');return Math.floor((d-WK_START)/(7*864e5))+1;}
 function typeToDisc(t){return t==='Run'?'run':(t==='Ride'||t==='VirtualRide')?'ride':t==='Swim'?'swim':null;}
 function matchWeek(w){
   const list=acts.filter(a=>weekOf(a.date)===w);
   const pool=poolOf(w),used={run:0,ride:0,swim:0};
-  const out=list.map(a=>{const k=typeToDisc(a.type);let st='bonus';if(k&&used[k]<pool[k]){used[k]++;st='對應';}return {...a,status:st};});
+  const out=list.map(a=>{const k=typeToDisc(a.type);let st='bonus';if(k&&used[k]<pool[k]){used[k]++;st='match';}return {...a,status:st};});
   const miss={run:pool.run-used.run,ride:pool.ride-used.ride,swim:pool.swim-used.swim};
   return {out,miss};
 }
@@ -279,11 +272,10 @@ function saveLocal(){localStorage.setItem('triapp_checks',JSON.stringify(checks)
 window.toggle=(di,si)=>{const k=cur+'_'+di+'_'+si;checks[k]=!checks[k];saveLocal();push();renderWeek();};
 window.exAct=(id,yes)=>{bonus[id]=yes?1:0;saveLocal();push();renderWeek();};
 
-let _hideTimer=null;
-function setSync(s){const b=$('#sync'),t=$('#sync-text');if(!CLOUD){t.textContent='本機';return;}b.className='sync-badge '+s;t.textContent=s==='syncing'?'同步中':s==='offline'?'離線':'已同步';}
+function setSync(s){const b=$('#sync'),t=$('#sync-text');if(!CLOUD){t.textContent='Local';return;}b.className='sync-badge '+s;t.textContent=s==='syncing'?'Syncing':s==='offline'?'Offline':'Synced';}
 
 function fmtKm(a){return a.distance_km?a.distance_km.toFixed(1)+'k':'';}
-function fmtTime(s){if(!s)return'';const m=Math.round(s/60);return m>=60?Math.floor(m/60)+':'+String(m%60).padStart(2,'0'):m+'分';}
+function fmtTime(s){if(!s)return'';const m=Math.round(s/60);return m>=60?Math.floor(m/60)+':'+String(m%60).padStart(2,'0'):m+'m';}
 function fmtExtra(a){const x=[];if(a.avg_hr)x.push('HR'+a.avg_hr);if(a.avg_watts)x.push(a.avg_watts+'W');if(a.rpe)x.push('RPE'+a.rpe);return x.join(' · ');}
 
 function render(){mode==='week'?renderWeek():renderOv();}
@@ -293,59 +285,56 @@ function renderWeek(){
   const total=totalSess(cur), n=wkDone(cur), pct=total?n/total:0;
   const C=2*Math.PI*22, off=C*(1-pct);
   let h=`<div class="card wk-head">
-    <div><div class="wk-title num">週 ${cur}</div><div class="wk-meta">${DATE[cur]} · ${W[cur].type}期 · ${n}/${total} 課</div></div>
+    <div><div class="wk-title num">Week ${cur}</div><div class="wk-meta">${DATE[cur]} · ${W[cur].type} · ${n}/${total} done</div></div>
     <div class="wk-ring"><svg width="54" height="54"><circle cx="27" cy="27" r="22" fill="none" stroke="var(--k100)" stroke-width="5"/><circle class="wk-ring-c" cx="27" cy="27" r="22" fill="none" stroke="var(--done)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg><div class="wk-ring-t num">${Math.round(pct*100)}</div></div>
   </div>`;
   h+=`<div class="card">`;
   W[cur].d.forEach((day,di)=>{
     const sess=sessionsOf(di,day);
-    h+=`<div class="day ${day[1]}"><div class="day-l"></div><div class="dname num">${DAYS[di]}</div><div class="dsess">`;
+    h+=`<div class="day ${day[1]}"><div class="day-l"></div><div class="dname">${DAYS[di]}</div><div class="dsess">`;
     sess.forEach((s,si)=>{
       if(s.rest){h+=`<div class="sess sess-rest"><div class="sess-b"><div class="sess-t">${s.t}</div></div></div>`;return;}
       const isDone=!!checks[cur+'_'+di+'_'+si];
-      h+=`<div class="sess ${isDone?'done':''}"><div class="sess-b"><div class="sess-t">${s.t}</div><div class="dmeta"><span class="pill ${s.lv}">${T[s.lv]}</span>${s.test?'<span class="tag">測試</span>':''}</div></div><div class="chk-sm ${isDone?'on':''}" onclick="toggle(${di},${si})"><svg viewBox="0 0 24 24" fill="none" stroke-width="3.5"><path d="M5 13l4 4L19 7"/></svg></div></div>`;
+      h+=`<div class="sess ${isDone?'done':''}"><div class="sess-b"><div class="sess-t">${s.t}</div><div class="dmeta"><span class="pill ${s.lv}">${T[s.lv]}</span>${s.test?'<span class="tag">test</span>':''}</div></div><div class="chk-sm ${isDone?'on':''}" onclick="toggle(${di},${si})"><svg viewBox="0 0 24 24" fill="none" stroke-width="3.5"><path d="M5 13l4 4L19 7"/></svg></div></div>`;
     });
     h+=`</div></div>`;
   });
   h+=`</div>`;
-  // Strava
   const {out,miss}=matchWeek(cur);
-  const nM=out.filter(a=>a.status==='對應').length, nB=out.length-nM;
+  const nM=out.filter(a=>a.status==='match').length, nB=out.length-nM;
   const nMiss=Math.max(0,miss.run)+Math.max(0,miss.ride)+Math.max(0,miss.swim);
   const past=weekOf(new Date().toISOString().slice(0,10))>cur;
-  h+=`<div class="sec-label">本週 Strava</div><div class="card">`;
-  h+=`<div class="sv-sum"><span>對應 <b class="c-match">${nM}</b></span><span>額外 <b class="c-bonus">${nB}</b></span><span>未對應 <b class="c-miss">${nMiss}</b></span></div>`;
-  if(!out.length) h+=`<div class="empty">尚無活動${CLOUD?'（n8n 自動帶入 Run/Ride/Swim）':'（sample 在第 1 週）'}</div>`;
+  h+=`<div class="sec-label">Strava this week</div><div class="card">`;
+  h+=`<div class="sv-sum"><span>Matched <b class="c-match">${nM}</b></span><span>Bonus <b class="c-bonus">${nB}</b></span><span>Missing <b class="c-miss">${nMiss}</b></span></div>`;
+  if(!out.length) h+=`<div class="empty">No activities yet ${CLOUD?'(n8n auto-imports Run/Ride/Swim)':'(sample in Week 1)'}</div>`;
   out.forEach(a=>{
     const isB=a.status==='bonus', decided=isB&&(a.id in bonus);
     const accent=isB?'var(--bonus)':'var(--done)';
-    const stCls=isB?'st-bonus':'st-match', stTx=isB?(decided?(bonus[a.id]?'已算':'已略過'):'額外'):'對應';
-    h+=`<div class="act"><div class="act-l" style="background:${accent}"></div><div class="act-in"><div class="act-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="var(--strava)"><path d="M15.4 16.97l-2.2-4.4-2.2 4.4H7.5L13.2 5l5.7 11.97h-3.5z"/></svg></div><div class="act-b"><div class="act-t">${a.type} ${fmtKm(a)} · ${fmtTime(a.moving_time_s)}</div><div class="act-s">${a.date}${fmtExtra(a)?' · '+fmtExtra(a):''}</div>${isB&&!decided?`<div class="bonus-act"><button class="b-yes" onclick="exAct('${a.id}',1)">算 bonus</button><button class="b-no" onclick="exAct('${a.id}',0)">不算</button></div>`:''}</div></div><span class="act-st ${stCls}">${stTx}</span></div>`;
+    const stCls=isB?'st-bonus':'st-match', stTx=isB?(decided?(bonus[a.id]?'counted':'skipped'):'bonus'):'match';
+    h+=`<div class="act"><div class="act-l" style="background:${accent}"></div><div class="act-in"><div class="act-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="var(--strava)"><path d="M15.4 16.97l-2.2-4.4-2.2 4.4H7.5L13.2 5l5.7 11.97h-3.5z"/></svg></div><div class="act-b"><div class="act-t">${a.type} ${fmtKm(a)} · ${fmtTime(a.moving_time_s)}</div><div class="act-s">${a.date}${fmtExtra(a)?' · '+fmtExtra(a):''}</div>${isB&&!decided?`<div class="bonus-act"><button class="b-yes" onclick="exAct('${a.id}',1)">Count</button><button class="b-no" onclick="exAct('${a.id}',0)">Skip</button></div>`:''}</div></div><span class="act-st ${stCls}">${stTx}</span></div>`;
   });
-  const missTx=['run','ride','swim'].filter(k=>miss[k]>0).map(k=>({run:'跑',ride:'騎',swim:'游'}[k])+' ×'+miss[k]).join('、');
-  if(missTx&&past) h+=`<div class="miss-row">本週未對應：${missTx}</div>`;
+  const missTx=['run','ride','swim'].filter(k=>miss[k]>0).map(k=>({run:'Run',ride:'Bike',swim:'Swim'}[k])+' ×'+miss[k]).join(', ');
+  if(missTx&&past) h+=`<div class="miss-row">Missing this week: ${missTx}</div>`;
   h+=`</div>`;
-  h+=`<div class="legend"><span><i class="dot" style="background:var(--core)"></i>核心</span><span><i class="dot" style="background:var(--keep)"></i>維持</span><span><i class="dot" style="background:var(--flex)"></i>彈性</span><span><i class="dot" style="background:var(--done)"></i>對應</span><span><i class="dot" style="background:var(--bonus)"></i>額外</span></div>`;
+  h+=`<div class="legend"><span><i class="dot" style="background:var(--core)"></i>Key</span><span><i class="dot" style="background:var(--keep)"></i>Keep</span><span><i class="dot" style="background:var(--flex)"></i>Flex</span><span><i class="dot" style="background:var(--done)"></i>Matched</span><span><i class="dot" style="background:var(--bonus)"></i>Bonus</span></div>`;
   $('#weekView').innerHTML=h;
 }
 
 function renderOv(){
-  let h=`<div class="ov-cap">一致性導入期 12 週 · 6/29 – 9/20。點任一週進入；淺底＝恢復週（適合排高雄出差）。</div><div class="card">`;
+  let h=`<div class="ov-cap">Consistency Base · 12 weeks · Jun 29 – Sep 20. Tap a week. Shaded = recovery (good for Kaohsiung trips).</div><div class="card">`;
   for(let w=1;w<=12;w++){
-    const rec=W[w].type.indexOf('恢復')>=0,total=totalSess(w),n=wkDone(w),pct=total?Math.round(n/total*100):0;
-    const run=W[w].d[6][0].replace('長跑 ',''),ride=W[w].d[5][0].split(' + ')[0].replace('長騎 ','');
-    h+=`<div class="ovrow ${rec?'rec':''} ${n===total?'full':''}" onclick="cur=${w};setMode('week')"><div><span class="ovnum">週${w}</span><span class="ovtype">${W[w].type}</span></div><div class="ovmid"><div class="ovdate">${DATE[w]} · 跑 ${run} · 騎 ${ride}</div><div class="ovbar"><i style="width:${pct}%"></i></div></div><div class="ovdone num"><b>${n}</b>/${total}</div></div>`;
+    const rec=W[w].type==='Recovery',total=totalSess(w),n=wkDone(w),pct=total?Math.round(n/total*100):0;
+    const run=W[w].d[6][0].replace('Long run ',''),ride=W[w].d[5][0].split(' + ')[0].replace('Long bike ','');
+    h+=`<div class="ovrow ${rec?'rec':''} ${n===total?'full':''}" onclick="cur=${w};setMode('week')"><div><span class="ovnum">Week ${w}</span><span class="ovtype">${W[w].type}</span></div><div class="ovmid"><div class="ovdate">${DATE[w]} · Run ${run} · Bike ${ride}</div><div class="ovbar"><i style="width:${pct}%"></i></div></div><div class="ovdone num"><b>${n}</b>/${total}</div></div>`;
   }
   h+=`</div>`;
   $('#ovView').innerHTML=h;
 }
 
-// ── 進入 / 選單 ──
 function enter(){$('#auth').classList.add('gone');$('#shell').classList.add('on');setTimeout(()=>$('#auth').style.display='none',420);render();}
 window.toggleMenu=()=>$('#user-menu').classList.toggle('open');
 window.doSignOut=()=>{toggleMenu();if(CLOUD&&window.auth)auth.signOut();else location.reload();};
 
-// ── 雲端 Firebase（沿用收入分配）──
 let auth,db;
 function isIOS(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);}
 function startSync(){
@@ -373,29 +362,29 @@ function push(){
 if(CLOUD){
   firebase.initializeApp(firebaseConfig);
   auth=firebase.auth(); db=firebase.firestore();
-  $('#mode-pill').textContent='雲端同步';
-  $('#auth-note').textContent='用 Google 登入，課表打卡雲端同步、多裝置共用。';
+  $('#mode-pill').textContent='Cloud sync';
+  $('#auth-note').textContent='Sign in with Google — your check-offs sync across devices.';
   let signing=false;
   $('#btn-signin').onclick=()=>{if(signing)return;signing=true;const p=new firebase.auth.GoogleAuthProvider();
     if(isIOS()){auth.signInWithRedirect(p);return;}
-    auth.signInWithPopup(p).catch(e=>{const ok=['auth/cancelled-popup-request','auth/popup-closed-by-user','auth/internal-error','auth/network-request-failed'];if(!ok.includes(e.code))setTimeout(()=>{if(!auth.currentUser)alert('登入失敗，請再試一次。');},800);}).finally(()=>signing=false);};
+    auth.signInWithPopup(p).catch(e=>{const ok=['auth/cancelled-popup-request','auth/popup-closed-by-user','auth/internal-error','auth/network-request-failed'];if(!ok.includes(e.code))setTimeout(()=>{if(!auth.currentUser)alert('Sign-in failed, please try again.');},800);}).finally(()=>signing=false);};
   auth.getRedirectResult().catch(()=>{});
   auth.onAuthStateChanged(u=>{
     $('#auth').classList.remove('loading');
     if(u){currentUser=u;
       const ini=(u.displayName||u.email||'J')[0].toUpperCase();
       $('#user-btn').innerHTML=u.photoURL?`<img src="${u.photoURL}">`:`<span class="user-initial">${ini}</span>`;
-      $('#menu-name').textContent=u.displayName||'使用者';$('#menu-email').textContent=u.email||'';
+      $('#menu-name').textContent=u.displayName||'Signed in';$('#menu-email').textContent=u.email||'';
       enter();startSync();
     }else{currentUser=null;stopSync();$('#auth').style.display='flex';$('#auth').classList.remove('gone');$('#shell').classList.remove('on');}
   });
 }else{
   $('#auth').classList.remove('loading');
-  $('#mode-pill').textContent='本機模式 · 預覽';
-  $('#signin-label').textContent='進入（本機模式）';
-  $('#auth-note').textContent='尚未貼 Firebase 設定，目前用本機儲存預覽。貼上 config + 部署後即為雲端登入同步（見 SETUP.md）。';
+  $('#mode-pill').textContent='Local preview';
+  $('#signin-label').textContent='Enter (local mode)';
+  $('#auth-note').textContent='No Firebase config yet — using local storage. Add config + deploy for cloud sync (see SETUP.md).';
   $('#btn-signin').onclick=enter;
-  $('#foot').innerHTML='本機模式預覽 · 待接 Firebase + Strava（SETUP.md）';
+  $('#foot').innerHTML='Local preview · Firebase + Strava pending (SETUP.md)';
 }
 </script>
 </body>

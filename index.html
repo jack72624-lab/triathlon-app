@@ -118,6 +118,7 @@ button{font-family:inherit}
 .dayhead b{font-size:10px;font-weight:800;letter-spacing:.12em}
 .dayhead .ln{flex:1;height:1px;background:var(--line)}
 .dayhead .rt{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--hint)}
+.wxchip{display:flex;align-items:center;gap:3px;font-size:9.5px;font-weight:700;font-variant-numeric:tabular-nums}
 .sess{display:flex;align-items:center;gap:13px;padding:9px 16px;cursor:pointer}
 .sess:last-child{padding-bottom:14px}
 .sqr{flex:0 0 36px;width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center}
@@ -346,7 +347,7 @@ let weekMode=LS('tp_weekMode',{});   // {5:{mode:'recovery',tpl:'travel',dest:'�
 let sessionAdj=LS('tp_adj',{});      // {'1_2_0':{indoor:1}} / {move:{label,to}} / {skip:1}
 
 let cur=1, mode='week', currentUser=null;
-let _unsubDoc=null,_unsubActs=null,_unsubWx=null,_recentWrite=false,_pushTimer=null;
+let _unsubDoc=null,_unsubActs=null,_recentWrite=false,_pushTimer=null;
 const $=s=>document.querySelector(s);
 
 function saveLocal(){localStorage.setItem('tp_checks',JSON.stringify(checks));localStorage.setItem('tp_bonus',JSON.stringify(bonus));localStorage.setItem('tp_weekMode',JSON.stringify(weekMode));localStorage.setItem('tp_adj',JSON.stringify(sessionAdj));}
@@ -432,44 +433,83 @@ window.adjMove=(di,si,targetIdx,swap)=>{const k=cur+'_'+di+'_'+si;const a=sessio
 window.adjClear=(di,si)=>{delete sessionAdj[cur+'_'+di+'_'+si];push();closeSheet();render();};
 
 /* ============================================================
-   附加層 3 — 天氣（CWA 中央氣象署，經 n8n 代抓）+ 分級
-   CWA API 不支援瀏覽器 CORS，所以前端不直接抓。改由 n8n 每幾小時抓 CWA
-   （F-C0032-001 降雨機率/天氣現象 + W-C0033-001 颱風豪雨特報）算出 level，
-   寫進 Firestore weather/current；App 用 startSync 的 listener 自動讀。
-   手動 setWsim 仍可臨時覆寫（下次輪詢會被自動值蓋回）。
+   附加層 3 — 天氣（Open-Meteo，逐日 7 天）+ 分級
+   Open-Meteo 免 key、支援瀏覽器 CORS，App 開啟時直接抓（不需後端/不靠 Mac）。
+   抓新北+高雄兩地 7 天逐日預報，每個日期依「那天所在週是否去高雄」挑城市。
+   用途：①今天 banner（一鍵調整今天）②每日預報小標 ③週末關鍵課對調建議。
    ============================================================ */
-const HOME_CITY='新北市', TRIP_CITY='高雄市';   // 平常抓新北、高雄週自動切高雄
-let weatherByCity={};                            // {'新北市':{level,pop,wx},'高雄市':{...}}（n8n 抓 CWA 寫入）
-let weather={ level:'clear', pop:null, wx:'' };  // 由 applyWeather() 從「當前該看的城市」解出
-let wxOverride=null;                             // 手動覆寫（null=自動），只在這次工作階段有效
-function fetchWeather(){ /* 天氣改由 Firestore weather/current listener 提供（見 startSync）；保留空函式相容 enter() */ }
-// 今天落在「去高雄的移動週」→ 看高雄，否則看新北
-function activeCity(){ const m=weekMode[weekOfTodayMaybe()]; return (m&&m.mode==='recovery'&&/高雄/.test(m.dest||''))?TRIP_CITY:HOME_CITY; }
-function applyWeather(){
-  if(wxOverride){ weather.level=wxOverride; return; }
-  const c=weatherByCity[activeCity()];
-  if(c){ weather.level=c.level||'clear'; weather.pop=(c.pop??null); weather.wx=(c.wx||''); }
+const HOME_CITY='新北市', TRIP_CITY='高雄市';
+const CITY_COORD={ '新北市':[25.012,121.465], '高雄市':[22.631,120.302] };  // 板橋一帶 / 高雄市區
+let weatherByDate={};   // {'YYYY-MM-DD':{level,pop,code,wind,city}}
+let _wxRaw=null;        // 兩地原始 daily（換城市時免重抓、重算即可）
+let wxOverride=null;    // 手動覆寫「今天」（'clear'|'rain'|'typhoon'|null），僅本次工作階段
+
+function ymd(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }  // 本地日期，避免 toISOString 的 UTC 位移
+function dateOf(w,di){ return ymd(new Date(WK_START.getTime()+((w-1)*7+di)*864e5)); }
+function todayStr(){ return ymd(new Date()); }
+function todayWeek(){ const w=weekOf(todayStr()); return (w>=1&&w<=12)?w:null; }   // 今天落第幾週（課表外=null）
+function todayIdx(){ return (new Date().getDay()+6)%7; }                            // 今天星期幾（一=0）
+function cityForWeek(w){ const m=weekMode[w]; return (m&&m.mode==='recovery'&&/高雄/.test(m.dest||''))?TRIP_CITY:HOME_CITY; }
+
+const WMO_TXT={0:'晴',1:'晴時多雲',2:'多雲',3:'陰',45:'霧',48:'霧',51:'毛毛雨',53:'毛毛雨',55:'毛毛雨',56:'凍雨',57:'凍雨',61:'小雨',63:'雨',65:'大雨',66:'凍雨',67:'凍雨',71:'雪',73:'雪',75:'大雪',77:'雪珠',80:'陣雨',81:'陣雨',82:'強陣雨',85:'陣雪',86:'陣雪',95:'雷雨',96:'雷雨夾雹',99:'雷雨夾雹'};
+function wxText(c){ return WMO_TXT[c]||'—'; }
+function levelFromForecast(pop,code,wind){
+  if(wind>=60) return 'typhoon';                  // 強風（颱風/熱帶風暴等級）→ 不安全
+  if([95,96,99].includes(code)) return 'rain';    // 雷雨
+  if(pop>=50) return 'rain';
+  if([65,67,82,86].includes(code)) return 'rain'; // 大雨/強陣雨
+  return 'clear';
 }
-window.setWsim=lv=>{ wxOverride=(lv==='auto'?null:lv); applyWeather(); render(); };   // 'auto'=回到自動
-// 今天是星期幾（落在本週才標）— demo 取週三
-function todayIdx(){ const t=new Date(); if(weekOf(t.toISOString().slice(0,10))===cur){ return (t.getDay()+6)%7; } return 2; }
+function fxOf(w,di){ return weatherByDate[dateOf(w,di)]||null; }     // 某課表日的預報（超 7 天或還沒抓=null）
+function todayLevel(){ if(wxOverride) return wxOverride; const f=weatherByDate[todayStr()]; return f?f.level:'clear'; }
+
+// 從兩地原始資料，依每個日期所在週的城市，重算 weatherByDate（render 時呼叫，免重抓）
+function resolveWeather(){
+  if(!_wxRaw) return;
+  const times=_wxRaw[HOME_CITY].time, m={};
+  times.forEach((dt,i)=>{
+    const d=_wxRaw[cityForWeek(weekOf(dt))];
+    const pop=d.precipitation_probability_max[i], code=d.weather_code[i], wind=d.wind_speed_10m_max[i];
+    m[dt]={ pop, code, wind, city:cityForWeek(weekOf(dt)), level:levelFromForecast(pop,code,wind) };
+  });
+  weatherByDate=m;
+}
+async function fetchWeather(){
+  try{
+    const daily=await Promise.all([HOME_CITY,TRIP_CITY].map(async c=>{
+      const cc=CITY_COORD[c];
+      const u=`https://api.open-meteo.com/v1/forecast?latitude=${cc[0]}&longitude=${cc[1]}&daily=precipitation_probability_max,weather_code,wind_speed_10m_max&timezone=Asia%2FTaipei&forecast_days=7`;
+      return (await (await fetch(u)).json()).daily;
+    }));
+    _wxRaw={ [HOME_CITY]:daily[0], [TRIP_CITY]:daily[1] };
+    resolveWeather(); render();
+  }catch(e){ /* 抓不到就保留上次 */ }
+}
+window.setWsim=lv=>{ wxOverride=(lv==='auto'?null:lv); render(); };   // 'auto'=回到自動
+
+// 今天的一鍵調整：依今天天氣改今天的課
 window.autoWeather=()=>{
-  const di=todayIdx(); const sess=sessionsOf(di,planOf(cur).d[di]);
-  sess.forEach((s,si)=>{
+  const w=todayWeek(); if(w==null) return; const di=todayIdx(); const lv=todayLevel();
+  sessionsOf(di,planOf(w).d[di]).forEach((s,si)=>{
     if(s.rest) return;
-    const disc=discOf(s.t); const k=cur+'_'+di+'_'+si; const a=sessionAdj[k]||{};
-    if(weather.level==='typhoon'){
-      if(disc==='ride'){a.indoor=1;}           // 踩台仍可（居家）
-      else {a.skip=1;}                          // 游泳(泳池關)/跑步 → 整天改休息/居家
-    } else { // rain
-      if(disc==='swim'){ /* 室內泳池照常，不動 */ }
-      else if(disc==='ride'){a.indoor=1;}       // 踩台
-      else if(disc==='run'){a.move={to:Math.min(6,di+1),label:DAYS[Math.min(6,di+1)],swap:false};} // 換天
-    }
+    const disc=discOf(s.t); const k=w+'_'+di+'_'+si; const a=sessionAdj[k]||{};
+    if(lv==='typhoon'){ if(disc==='ride')a.indoor=1; else a.skip=1; }                                   // 颱風：踩台留、其餘略過
+    else if(lv==='rain'){ if(disc==='ride')a.indoor=1; else if(disc==='run')a.move={to:Math.min(6,di+1),label:DAYS[Math.min(6,di+1)],swap:false}; }  // 雨：單車踩台、跑步換隔天、游泳不動
     sessionAdj[k]=a;
   });
   push(); render();
 };
+
+// 週末關鍵課對調建議：比較週六(長騎+磚)/週日(長跑)的預報
+function weekendAdvice(w){
+  const sat=fxOf(w,5), sun=fxOf(w,6);
+  if(!sat||!sun) return null;                       // 還沒到 7 天預報範圍
+  const bad=l=>l==='rain'||l==='typhoon';
+  if(bad(sat.level)&&!bad(sun.level)) return `週六長騎 ${wxText(sat.code)}${sat.pop!=null?` ${sat.pop}%`:''}，週日較佳 → 建議與週日長跑對調`;
+  if(bad(sun.level)&&!bad(sat.level)) return `週日長跑 ${wxText(sun.code)}${sun.pop!=null?` ${sun.pop}%`:''}，週六較佳 → 建議與週六長騎對調`;
+  if(bad(sat.level)&&bad(sun.level)) return `週末兩天都可能有雨（六 ${sat.pop??'?'}% / 日 ${sun.pop??'?'}%）→ 長課考慮室內或彈性安排`;
+  return null;
+}
 
 /* ============================================================
    圖示
@@ -504,7 +544,7 @@ const LVCOLR={core:'#516a8f',keep:'#5e827b',flex:'#7b8494',rest:'#7b8494'};
    ============================================================ */
 function totals(w){ let total=0,done=0; planOf(w).d.forEach((day,di)=>effectiveSessions(w,di).forEach(s=>{ if(s.rest||s.skip)return; total++; if(s.done)done++; })); return {total,done}; }
 
-function render(){ applyWeather(); mode==='week'?renderWeek():renderOv(); renderFoot(); }
+function render(){ resolveWeather(); mode==='week'?renderWeek():renderOv(); renderFoot(); }
 window.setMode=m=>{mode=m;$('#segWeek').className=m==='week'?'on':'';$('#segOv').className=m==='ov'?'on':'';$('#weekView').style.display=m==='week'?'block':'none';$('#ovView').style.display=m==='ov'?'block':'none';render();};
 window.toggle=(di,si)=>{const k=cur+'_'+di+'_'+si;checks[k]=!checks[k];push();render();};
 window.exAct=(id,yes)=>{bonus[id]=yes?1:0;push();renderWeek();};
@@ -523,12 +563,13 @@ function adjTags(s){
 }
 
 function weatherBanner(){
-  const di=todayIdx();
-  if(weather.level==='rain'){
-    return `<div class="banner banner-rain"><div class="b-ic">${ico('rain','#9fb3d6',19)}</div><div style="flex:1;min-width:0"><div class="b-t">${weather.wx||'今天有雨'} · 週${DAYZH[di]}</div><div class="b-s">戶外課程建議改室內或換天${weather.pop!=null?` · 降雨機率 ${weather.pop}%`:''}</div></div><div class="banner-act" onclick="autoWeather()">自動處理</div></div>`;
+  const di=todayIdx(); const lv=todayLevel(); const f=weatherByDate[todayStr()]||{};
+  const popTx=f.pop!=null?` · 降雨機率 ${f.pop}%`:''; const wx=f.code!=null?wxText(f.code):'今天有雨';
+  if(lv==='rain'){
+    return `<div class="banner banner-rain"><div class="b-ic">${ico('rain','#9fb3d6',19)}</div><div style="flex:1;min-width:0"><div class="b-t">${wx} · 週${DAYZH[di]}</div><div class="b-s">戶外課程建議改室內或換天${popTx}</div></div><div class="banner-act" onclick="autoWeather()">自動處理</div></div>`;
   }
-  if(weather.level==='typhoon'){
-    return `<div class="banner banner-warn"><div class="wh"><div class="b-ic">${ico('alert','#a6772e',19)}</div><div style="flex:1;min-width:0"><div class="b-t">颱風警報 · 週${DAYZH[di]}</div><div class="b-s">泳池多半關閉、外出不安全</div></div></div><div class="wbtns"><button class="wb1" onclick="autoWeather()">自動處理</button><button class="wb2" onclick="setWsim('clear')">忽略</button></div></div>`;
+  if(lv==='typhoon'){
+    return `<div class="banner banner-warn"><div class="wh"><div class="b-ic">${ico('alert','#a6772e',19)}</div><div style="flex:1;min-width:0"><div class="b-t">強風警示 · 週${DAYZH[di]}</div><div class="b-s">泳池多半關閉、外出不安全${f.wind!=null?` · 陣風 ${Math.round(f.wind)} km/h`:''}</div></div></div><div class="wbtns"><button class="wb1" onclick="autoWeather()">自動處理</button><button class="wb2" onclick="setWsim('clear')">忽略</button></div></div>`;
   }
   return '';
 }
@@ -543,7 +584,8 @@ function renderWeek(){
   if(plan.trip){
     h+=`<div class="banner banner-dark"><div class="b-ic">${ico('pin','#8ea3c4',17)}</div><div style="flex:1;min-width:0"><div class="b-t">${plan.dest?plan.dest:'移動'}週</div><div class="b-s">已套用 ${plan.tplName} · 課程轉 Flex</div></div><div class="banner-act" onclick="setWeekMode(${cur},null)">恢復完整</div></div>`;
   }
-  if(cur===weekOfTodayMaybe()) h+=weatherBanner();
+  if(todayWeek()===cur) h+=weatherBanner();
+  const wa=weekendAdvice(cur); if(wa) h+=`<div class="banner banner-dark"><div class="b-ic">${ico('rain','#8ea3c4',17)}</div><div style="flex:1;min-width:0"><div class="b-t">週末預報</div><div class="b-s">${wa}</div></div></div>`;
 
   const eyebrow = plan.trip?'Recovery · 移動週':(plan.boosted?'Build · 加量週':(plan.type+' phase · Week '+cur));
   const hh = plan.trip?'放鬆就好':(pct>=.6?'狀態超棒':pct>0?'On track':'本週開始');
@@ -558,7 +600,8 @@ function renderWeek(){
     const sess=effectiveSessions(cur,di);
     const allRest=sess.every(s=>s.rest);
     const lvc=LVCOLR[day[1]]||'#7b8494';
-    h+=`<div class="dayhead${di?' bt':''}"><b style="color:${allRest?'#b0b6c0':lvc}">${DAYS[di].toUpperCase()}</b><span class="ln"></span>${allRest?'<span class="rt">rest day</span>':''}</div>`;
+    const fx=fxOf(cur,di); const wxc=(fx&&fx.level!=='clear')?`<span class="wxchip" style="color:${fx.level==='typhoon'?'var(--warn)':'#6a8fae'}">${ico(fx.level==='typhoon'?'alert':'rain',fx.level==='typhoon'?'#a6772e':'#9fb3d6',11)}${fx.pop!=null?fx.pop+'%':''}</span>`:'';
+    h+=`<div class="dayhead${di?' bt':''}"><b style="color:${allRest?'#b0b6c0':lvc}">${DAYS[di].toUpperCase()}</b><span class="ln"></span>${wxc}${allRest?'<span class="rt">rest day</span>':''}</div>`;
     sess.forEach((s,si)=>{
       if(s.rest){ h+=`<div class="sess sess-rest"><div class="sqr" style="background:var(--rest-t)">${ico('rest','#a2a9b5',18)}</div><div class="sbody"><div class="stitle">${s.t}</div></div></div>`; return; }
       const tags=adjTags(s); const titleCls=s.done?'done':(s.skip?'skip':'');
@@ -626,7 +669,8 @@ function renderOv(){
 function renderFoot(){
   const opts=[['auto','自動'],['clear','晴'],['rain','雨'],['typhoon','颱風']];
   const sel=wxOverride||'auto';
-  $('#foot').innerHTML=`Challenge Taiwan 226 · 2027-04-24<div style="margin-top:8px;font-size:10px;color:var(--hint)">天氣自動取自 CWA（${activeCity()}）· 可臨時覆寫</div><div class="wsim">${opts.map(o=>`<button class="${sel===o[0]?'on':''}" onclick="setWsim('${o[0]}')">${o[1]}</button>`).join('')}</div>`;
+  const tc=(weatherByDate[todayStr()]||{}).city||HOME_CITY;
+  $('#foot').innerHTML=`Challenge Taiwan 226 · 2027-04-24<div style="margin-top:8px;font-size:10px;color:var(--hint)">天氣 Open-Meteo（${tc}）· 今天可手動覆寫</div><div class="wsim">${opts.map(o=>`<button class="${sel===o[0]?'on':''}" onclick="setWsim('${o[0]}')">${o[1]}</button>`).join('')}</div>`;
 }
 
 function fmtKm(a){return a.distance_km?a.distance_km.toFixed(1)+'k':'';}
@@ -733,12 +777,8 @@ function startSync(){
   _unsubActs=db.collection('tri_users').doc(currentUser.uid).collection('activities').orderBy('date','desc').onSnapshot(snap=>{
     acts=snap.docs.map(x=>{const d=x.data();let dt=d.date;if(dt&&dt.toDate)dt=dt.toDate().toISOString().slice(0,10);return {id:x.id,...d,date:dt};});render();
   },()=>{});
-  // 天氣：n8n 抓 CWA 寫進 weather/current，這裡自動讀（不存在就維持預設 clear）
-  _unsubWx=db.collection('weather').doc('current').onSnapshot(doc=>{
-    if(doc.exists){const w=doc.data();weatherByCity=w.byCity||w.cities||{};render();}
-  },()=>{});
 }
-function stopSync(){if(_unsubDoc){_unsubDoc();_unsubDoc=null;}if(_unsubActs){_unsubActs();_unsubActs=null;}if(_unsubWx){_unsubWx();_unsubWx=null;}}
+function stopSync(){if(_unsubDoc){_unsubDoc();_unsubDoc=null;}if(_unsubActs){_unsubActs();_unsubActs=null;}}
 
 if(CLOUD){
   firebase.initializeApp(firebaseConfig);

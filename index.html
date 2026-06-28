@@ -686,7 +686,7 @@ function weekDiscProgress(w){
   return {done,plan:pl};
 }
 function weekVolume(w){ let s=0,km=0; acts.forEach(a=>{ if(weekOf(a.date)===w){ s+=a.moving_time_s||0; km+=a.distance_km||0; } }); return {hours:s/3600,km}; }
-function monthMileage(){ const now=new Date(),y=now.getFullYear(),m=now.getMonth(); let km=0; acts.forEach(a=>{ const dt=new Date(a.date+'T00:00:00'); if(dt.getFullYear()===y&&dt.getMonth()===m){ const k=typeToDisc(a.type); if(k==='run'||k==='ride') km+=a.distance_km||0; } }); return km; }
+function monthMileage(){ const now=new Date(),y=now.getFullYear(),m=now.getMonth(); let km=0; acts.forEach(a=>{ const dt=new Date(a.date+'T00:00:00'); if(dt.getFullYear()===y&&dt.getMonth()===m&&dt>=WK_START){ const k=typeToDisc(a.type); if(k==='run'||k==='ride') km+=a.distance_km||0; } }); return km; }  // 只算計畫開始(6/29)後
 
 // 數字滾動：0 → 目標（ease-out cubic）。尊重「減少動態」設定。
 function countUp(el,to,o){

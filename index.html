@@ -646,7 +646,7 @@ function renderWeek(){
     sess.forEach((s,si)=>{
       if(s.rest){ h+=`<div class="sess sess-rest"><div class="sqr" style="background:var(--rest-t)">${ico('rest','#a2a9b5',18)}</div><div class="sbody"><div class="stitle">${s.t}</div></div></div>`; return; }
       const tags=adjTags(s); const titleCls=s.done?'done':(s.skip?'skip':'');
-      h+=`<div class="sess" onclick="toggle(${di},${si})">
+      h+=`<div class="sess" style="border-left:3px solid ${LVCOL[s.lv]}" onclick="toggle(${di},${si})">
         <div class="sqr" style="background:${LVTINT[s.lv]}" onclick="event.stopPropagation();openAdj(${di},${si})">${ico(discIcon(s.t,s.lv),LVCOL[s.lv],19)}</div>
         <div class="sbody"><div class="stitle ${titleCls}">${s.t}${s.test?' · test':''}</div>${tags?`<div class="tags">${tags}</div>`:''}</div>
         <div class="chk ${s.done?'on':''}">${s.done?ico('check','#fff',13,3.5):''}</div></div>`;

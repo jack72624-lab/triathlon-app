@@ -311,6 +311,10 @@ button{font-family:inherit}
 
 <div id="sheet"><div class="sheet-dim" onclick="closeSheet()"></div><div class="sheet-card" id="sheet-card"></div></div>
 
+<!-- iPhone 觸覺繞法：Safari 17.4+ 在點擊切換這個原生 switch 時會給一下系統輕點。
+     隱藏但保留在版面（display:none 會讓觸覺失效），實際切換見 iosHaptic()。 -->
+<label id="ios-haptic" aria-hidden="true" style="position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden"><input type="checkbox" switch tabindex="-1"></label>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -611,6 +615,8 @@ const RUN_CHEERS=[
   '這一跑算數了。配速別貪快，累積比強度重要。',
   '跑步又 +1。練起來的不是腿，是底氣。'
 ];
+// iPhone 觸覺：點擊當下切換隱藏的原生 switch → 系統給一下輕點（Safari 17.4+；其他平台無作用、無害）。
+function iosHaptic(){ const el=document.getElementById('ios-haptic'); if(el) el.click(); }
 let _cheerEl=null,_cheerTimer=null;
 function showCheer(msg){
   if(!_cheerEl){ _cheerEl=document.createElement('div'); _cheerEl.className='cheer'; document.body.appendChild(_cheerEl); }
@@ -625,7 +631,8 @@ function celebrateCheck(k,di,si){
   chk.appendChild(Object.assign(document.createElement('span'),{className:'ringfx'}));      // 光環一圈
   if(isRun) chk.appendChild(Object.assign(document.createElement('span'),{className:'ringfx r2'})); // 跑步再疊一圈
   chk.classList.add('pop');                                                                  // 勾勾描繪 + 輕彈
-  if(navigator.vibrate) navigator.vibrate(isRun?[10,40,16]:15);                              // iOS Safari 無 vibrate → 無聲降級
+  if(navigator.vibrate) navigator.vibrate(isRun?[10,40,16]:15);                              // Android 自訂節奏
+  iosHaptic();                                                                               // iPhone Safari 17.4+ 單下輕點
   if(isRun) showCheer(RUN_CHEERS[Math.floor(Math.random()*RUN_CHEERS.length)]);              // 跑步鼓勵浮字
   setTimeout(()=>{ chk.querySelectorAll('.ringfx').forEach(n=>n.remove()); chk.classList.remove('pop'); },700);
 }

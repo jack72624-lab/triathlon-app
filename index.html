@@ -7,7 +7,7 @@
 -->
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tri Plan</title>
 <meta name="theme-color" content="#161b26">
 <link rel="icon" type="image/png" sizes="32x32" href="icon/icon-32.png">
@@ -79,11 +79,11 @@ button{font-family:inherit}
 /* ---------- Segmented ---------- */
 /* ---------- 底部分頁（docked 貼底列，沿用「收入分配」tabbar：圖示+標籤，active 變亮+放大+小點）---------- */
 .tnav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;background:var(--nav);border-top:1px solid rgba(255,255,255,.07);padding-bottom:var(--safe-bot)}
-.tnav-btn{flex:1;padding:11px 0 9px;border:none;background:none;color:#8b93a3;font-size:11px;font-weight:700;letter-spacing:.04em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:color .2s;font-family:inherit}
-.tnav-btn svg{width:19px;height:19px;transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+.tnav-btn{flex:1;padding:10px 0 8px;border:none;background:none;color:#8b93a3;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:color .2s;font-family:inherit}
+.tnav-btn svg{width:18px;height:18px;transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
 .tnav-btn.on{color:#f3f4f7}
 .tnav-btn.on svg{transform:scale(1.12)}
-.tnav-dot{width:4px;height:4px;border-radius:99px;background:currentColor;opacity:0;transform:scaleX(0);transition:opacity .2s,transform .25s cubic-bezier(.34,1.56,.64,1)}
+.tnav-dot{width:4px;height:4px;border-radius:2px;background:currentColor;opacity:0;transform:scaleX(0);transition:opacity .2s,transform .25s cubic-bezier(.34,1.56,.64,1);margin-top:-1px}
 .tnav-btn.on .tnav-dot{opacity:1;transform:scaleX(1)}
 @media (prefers-reduced-motion:reduce){.tnav-btn svg,.tnav-dot{transition:none}}
 

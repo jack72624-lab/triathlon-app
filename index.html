@@ -313,7 +313,7 @@ button{font-family:inherit}
 
 <!-- iPhone 觸覺繞法：Safari 17.4+ 在點擊切換這個原生 switch 時會給一下系統輕點。
      隱藏但保留在版面（display:none 會讓觸覺失效），實際切換見 iosHaptic()。 -->
-<label id="ios-haptic" aria-hidden="true" style="position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden"><input type="checkbox" switch tabindex="-1"></label>
+<label id="ios-haptic" aria-hidden="true" style="position:absolute;opacity:0"><input type="checkbox" switch></label>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>

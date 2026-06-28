@@ -299,6 +299,23 @@ button{font-family:inherit}
 .preview-row .pv{flex:1;min-width:0}
 .preview-row .pd{font-size:10px;color:var(--faint);font-weight:700}
 .preview-row .pt{font-size:13px;font-weight:700;color:var(--ink);margin-top:2px}
+
+/* 課程細節（點課程圖示展開：RPE/心率/配速/重點 + 肌力/小腿做法）*/
+.dt-sec{font-size:10px;font-weight:800;color:var(--faint);letter-spacing:.12em;text-transform:uppercase;margin:4px 2px 9px}
+.dt-row{display:flex;gap:12px;padding:9px 2px;border-bottom:1px solid var(--line2)}
+.dt-row:last-child{border-bottom:none}
+.dt-k{flex:0 0 62px;font-size:12px;font-weight:800;color:var(--sub)}
+.dt-v{flex:1;font-size:13px;color:var(--ink);line-height:1.55}
+.dt-why{font-size:12.5px;color:var(--sub);line-height:1.6;background:#f4f6fa;border-radius:13px;padding:12px 14px;margin-top:13px}
+.dt-why b{color:var(--key)}
+.proto h5{font-size:12.5px;font-weight:800;color:var(--ink);margin:13px 0 5px}
+.proto h5:first-child{margin-top:2px}
+.proto ul{list-style:none}
+.proto li{position:relative;font-size:13px;color:var(--ink);line-height:1.6;padding-left:15px;margin-bottom:5px}
+.proto li:before{content:"";position:absolute;left:2px;top:9px;width:5px;height:5px;border-radius:99px;background:var(--key)}
+.proto li b{font-weight:700}
+.warn-note{font-size:12px;color:#7a5618;background:var(--warn-t);border:1px solid var(--warn-b);border-radius:13px;padding:11px 13px;margin-top:13px;line-height:1.55}
+.sh-divider{height:1px;background:var(--line);margin:18px 0 16px}
 </style>
 </head>
 <body>
@@ -961,13 +978,55 @@ window.tripConfirm=()=>{
 };
 function setWeekModeSilent(w,mode,opt){ if(!mode)delete weekMode[w]; else if(mode==='recovery')weekMode[w]={mode:'recovery',tpl:(opt&&opt.tpl)||'travel',dest:(opt&&opt.dest)||''}; else if(mode==='build')weekMode[w]={mode:'build'}; }
 
-// 單堂課動作選單
+/* ---- 課程細節（點課程圖示展開）----------------------------------------
+   導入期全 Zone 2，按「課別」一張表；騎車用 FTP 195、心率 142–156（最大197/靜息60，Karvonen）。
+   配速待第 4 週 5k 計時校準，先用心率控。肌力/小腿放鬆給完整做法。 */
+const SESS_INFO={
+ 'run-easy':{rows:[['RPE','2–3 / 10 · 能完整對話'],['心率','Zone 2 · 142–156 bpm；easy 日待在 142–150'],['配速','待第 4 週 5k 計時校準；先用心率 142–150 控強度'],['重點','步頻往 175–185 spm；不追配速、追輕鬆累積；尾段可接 strides 4–6×20 秒']],why:'導入期靠<b>頻率與有氧容量</b>打底。跑步是限制段，先把「每週都有跑」變習慣，比跑快重要。'},
+ 'long-run':{rows:[['RPE','3–4 / 10 · 仍可對話、稍喘'],['心率','Zone 2 · 142–156 bpm；後段可到 ~156，別超過'],['配速','全程 easy；「後段不掉速」優先於跑快。90min+ 開始邊跑邊吃'],['重點','時間/距離漸進（8→14k）；練後段耐力與「不崩」；補給演練起點']],why:'直接修<b>後段崩速</b>。導入期長跑封頂在舒適範圍，不冒進、保護踝/膝。'},
+ 'swim':{rows:[['RPE','2–3 / 10 · 輕鬆'],['心率','不強求（游泳心率偏低），以技術為主'],['配速','有氧維持 ~2:35/100m；可加 8×25m race-pace 短衝'],['重點','自由式技術：抓水 catch、體線、換氣節奏']],why:'游泳是你<b>最穩的一段</b>，維持量＋修技術即可，別佔用跑步/肌力精力。'},
+ 'bike-z2':{rows:[['RPE','2–3 / 10 · 輕鬆能對話'],['心率/功率','Z2 = 109–146 W（FTP 195）／ HR 142–156；台上 85–95 rpm'],['重點','騎乘姿勢、功率計上手；台上踩穩、不暴衝']],why:'騎車是你的<b>強項</b>，導入期維持有氧＋熟悉功率計，為 Build 期 sweet-spot 鋪路。'},
+ 'long-bike':{rows:[['RPE','3–4 / 10'],['心率/功率','目標 133–140 W（IF 0.68–0.72，FTP 195）、VI < 1.05；HR 142–156'],['配速','全程壓住別暴衝 —— 練「騎完還能跑」，不是騎車 PB'],['重點','騎車配速紀律＝後段不崩的<b>最強槓桿</b>；結束接 brick run']],why:'你歷史崩盤主因是<b>騎太兇拖垮跑</b>。長騎就是練「管住功率」。'},
+ 'brick':{rows:[['RPE','3–4 / 10'],['配速','下車前 8–12k 比目標馬拉松配速慢 10–15 秒/km，先穩別衝'],['重點','適應「下車腿」沉重感；時間漸進 10→20min；早段配速紀律']],why:'<b>run-off-bike</b> 是你最缺的條件，brick 直接練這轉換 —— 弱項的關鍵課。'},
+ 'ftp-test':{rows:[['強度','漸增到力竭 / 全力'],['做法','訓練台 ramp（每段漸增功率到撐不住），或 20 分 TT × 0.95 = FTP'],['注意','先暖身 15min；前一天別練爆；測完把課表瓦數換成你的真值']],why:'這是定<b>騎車強度的基準</b> —— IF 0.68–0.72 的目標瓦數從這個 FTP 來。現在 195W 是 Garmin 估的，這次實測校正。'},
+ 'tt-test':{rows:[['強度','5k 盡力均速（不是衝刺）'],['做法','暖身 10–15min → 全力跑 5k；用成績反推可持續馬拉松配速（約 5k 配速 +60–75 秒/km）'],['注意','排在恢復週後狀態好時；找平坦路段或操場']],why:'定<b>跑步配速基準</b> —— brick 與長跑的目標配速從這校準，取代現在的心率暫代。'}
+};
+const STRENGTH_HTML=`<div class="proto"><h5>暖身 5min</h5><ul><li>髖繞環、徒手深蹲、弓箭步走</li></ul><h5>主項（選 3–4，每項 2–3 組 × 8–12 下）</h5><ul><li><b>高腳杯深蹲</b> — 下肢整體</li><li><b>羅馬尼亞硬舉</b> — 後鏈/臀腿，跑步推進力</li><li><b>後腳抬高分腿蹲</b> — 單腳，修左右失衡＝跑步專項</li><li><b>上階 / 單腳蹲</b></li></ul><h5>核心＋髖穩定（2–3 項）</h5><ul><li>死蟲、側棒、單腳臀橋、鳥狗</li></ul><h5>收尾</h5><ul><li>提踵（接小腿離心）</li></ul></div><div class="dt-why">導入期重<b>動作品質與徵召</b>，不追大重量（Build 才進 MS 大重量低反覆）。複合、單腳、後鏈導向支援跑步經濟性與骨盆穩定；不排增肌型小腿課。依 PLAN §13：每週 2 次各 30–45min，AA→MS 漸進。</div>`;
+const CALF_HTML=`<div class="proto"><ul><li><b>滾筒</b> 腓腸肌＋比目魚肌，各 1–2min（找痛點停留）</li><li><b>離心提踵（Alfredson 型，阿基里斯實證核心）</b>：站階梯邊緣，雙腳提起 → 單腳緩慢放下到腳跟低於階梯。直膝 15 下 × 2、屈膝 15 下 × 2</li><li><b>短伸展 ≤10min</b>：靠牆小腿伸展，直膝＋屈膝各 30 秒 × 2</li></ul></div><div class="dt-why">PLAN §7 實證主力是<b>離心負荷</b>（非長靜態伸展）。定位是阿基里斯/腳踝健康維護，<b>不增粗、也不會明顯瘦小腿</b>。</div><div class="warn-note">⚠ 腳踝外側／膝外側若出現症狀 → 停課、找物理治療，別硬推（PLAN §9）。</div>`;
+function detailType(t){ const x=(t||'').toLowerCase();
+  if(/calf|小腿/.test(x)) return 'calf';
+  if(/strength|肌力|核心/.test(x)) return 'strength';
+  if(/brick/.test(x)) return 'brick';
+  if(/ftp|ramp/.test(x)) return 'ftp-test';
+  if(/time trial|計時/.test(x)) return 'tt-test';
+  if(/long run|長跑/.test(x)) return 'long-run';
+  if(/long bike|長騎/.test(x)) return 'long-bike';
+  if(/swim|游/.test(x)) return 'swim';
+  if(/bike|騎|z2/.test(x)) return 'bike-z2';
+  if(/run|跑/.test(x)) return 'run-easy';
+  return null;
+}
+function detailLoc(type,indoor){
+  if(indoor) return type==='swim'?'室內泳池':/bike/.test(type||'')?'踩台 · 室內':'跑步機 · 室內';
+  return ({swim:'泳池',strength:'居家/健身房',calf:'居家','bike-z2':'戶外/台上','long-bike':'戶外/台上',brick:'戶外','run-easy':'戶外','long-run':'戶外','ftp-test':'訓練台','tt-test':'戶外/操場'})[type]||'戶外';
+}
+function detailBody(type){
+  if(type==='strength') return STRENGTH_HTML;
+  if(type==='calf') return CALF_HTML;
+  const i=SESS_INFO[type]; if(!i) return '';
+  return i.rows.map(r=>`<div class="dt-row"><div class="dt-k">${r[0]}</div><div class="dt-v">${r[1]}</div></div>`).join('')+(i.why?`<div class="dt-why">${i.why}</div>`:'');
+}
+
+// 單堂課：課程細節 + 調整選單（點課程圖示開啟）
 window.openAdj=(di,si)=>{
   const s=effectiveSessions(cur,di)[si]; const disc=discOf(s.t);
   const indoorTxt = disc==='swim'?'室內泳池':disc==='ride'?'改踩台（室內）':'跑步機（室內）';
   const adj=sessionAdj[cur+'_'+di+'_'+si]||{};
+  const type=detailType(s.t), dbody=type?detailBody(type):'', lvZh={core:'核心',keep:'維持',flex:'彈性',rest:'休息'}[s.lv]||'', loc=detailLoc(type,adj.indoor);
   let h=`<div class="sheet-grab"></div>
-   <div class="sh-head"><div class="sh-ic">${ico(discIcon(s.t,s.lv),'#516a8f',20)}</div><div><div class="sh-h">${s.t}</div><div class="sh-s">週${DAYZH[di]} · ${T[s.lv]} · 戶外</div></div></div>
+   <div class="sh-head"><div class="sh-ic">${ico(discIcon(s.t,s.lv),'#516a8f',20)}</div><div><div class="sh-h">${s.t}</div><div class="sh-s">週${DAYZH[di]} · ${T[s.lv]} ${lvZh} · ${loc}</div></div></div>
+   ${dbody?`<div class="dt-sec">課程細節</div>${dbody}<div class="sh-divider"></div>`:''}
+   <div class="dt-sec">調整這堂</div>
    <div class="opt" onclick="openDayPicker(${di},${si})"><div class="opt-ic">${ico('swap','#516a8f',18)}</div><div class="opt-b"><div class="opt-t">換到別天</div><div class="opt-d">移動，或與另一天課程互換</div></div>${chev()}</div>
    <div class="opt" onclick="adjIndoor(${di},${si})"><div class="opt-ic">${ico('monitor','#516a8f',18)}</div><div class="opt-b"><div class="opt-t">${adj.indoor?'取消室內':'改室內替代'}</div><div class="opt-d">${indoorTxt}</div></div>${chev()}</div>
    <div class="opt" onclick="adjSkip(${di},${si})"><div class="opt-ic">${ico('skip','#7b8494',18)}</div><div class="opt-b"><div class="opt-t">${adj.skip?'取消略過':'今天略過 / 延期'}</div><div class="opt-d">不列入未完成，可之後補做</div></div>${chev()}</div>

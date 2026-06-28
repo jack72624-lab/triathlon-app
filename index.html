@@ -257,7 +257,8 @@ button{font-family:inherit}
 /* ---------- Sheet ---------- */
 #sheet{position:fixed;inset:0;z-index:120;display:none}
 #sheet.on{display:block}
-.sheet-dim{position:absolute;inset:0;background:rgba(12,14,20,.42)}
+.sheet-dim{position:absolute;inset:0;background:rgba(12,14,20,.42);transition:opacity .26s}
+.sheet-dim.fade{opacity:0}
 .sheet-card{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:26px 26px 0 0;padding:10px 20px calc(24px + var(--safe-bot));box-shadow:0 -10px 40px rgba(0,0,0,.18);transform:translateY(0);transition:transform .26s cubic-bezier(.3,.9,.3,1);max-height:88vh;overflow-y:auto;overscroll-behavior:contain}
 #sheet:not(.on) .sheet-card{transform:translateY(100%)}
 .sheet-grab{width:54px;height:5px;border-radius:99px;background:#dfe3ea;margin:2px auto 16px}
@@ -939,15 +940,35 @@ function fmtExtra(a){const x=[];if(a.avg_hr)x.push('HR'+a.avg_hr);if(a.avg_watts
 /* ============================================================
    Sheets
    ============================================================ */
-function openSheet(html){ const c=$('#sheet-card'); c.style.transition=''; c.style.transform=''; c.innerHTML=html; $('#sheet').classList.add('on'); const sc=$('.scroll'); if(sc) sc.style.overflow='hidden'; }  // 鎖背景：開啟時下層不滾動
-window.closeSheet=()=>{ $('#sheet').classList.remove('on'); const sc=$('.scroll'); if(sc) sc.style.overflow=''; };
-// 唯一關閉手勢＝往下拉（門檻 170px，較不靈敏）；preventDefault 讓背景不跟著跑、只動 sheet 本身
+let _closeTimer=null;
+function openSheet(html){
+  const c=$('#sheet-card'), dim=$('#sheet .sheet-dim');
+  clearTimeout(_closeTimer);                                   // 取消進行中的關閉動畫
+  if(dim) dim.classList.remove('fade');
+  c.style.transition=''; c.style.transform=''; c.innerHTML=html;
+  $('#sheet').classList.add('on');
+  const sc=$('.scroll'); if(sc) sc.style.overflow='hidden';    // 鎖背景：開啟時下層不滾動
+}
+// 平滑關閉：卡片從目前位置滑出畫面 + 暗色淡出，動畫結束才隱藏（避免「整個畫面瞬間重整」感）
+window.closeSheet=()=>{
+  const sheet=$('#sheet'); if(!sheet.classList.contains('on')) return;
+  const c=$('#sheet-card'), dim=sheet.querySelector('.sheet-dim');
+  c.style.transition='transform .28s cubic-bezier(.3,.9,.3,1)'; void c.offsetHeight; c.style.transform='translateY(110%)';
+  if(dim) dim.classList.add('fade');
+  clearTimeout(_closeTimer);
+  _closeTimer=setTimeout(()=>{
+    sheet.classList.remove('on'); c.style.transition=''; c.style.transform='';
+    if(dim) dim.classList.remove('fade');
+    const sc=$('.scroll'); if(sc) sc.style.overflow='';
+  },280);
+};
+// 唯一關閉手勢＝往下拉（門檻 170px）；preventDefault 讓背景不跟著跑、只動 sheet 本身
 (function(){
   const c=$('#sheet-card'); if(!c) return;
   let sy=0, dy=0, on=false;
   c.addEventListener('touchstart',e=>{ if(c.scrollTop>2){on=false;return;} sy=e.touches[0].clientY; dy=0; on=true; c.style.transition='none'; },{passive:true});
   c.addEventListener('touchmove',e=>{ if(!on) return; dy=e.touches[0].clientY-sy; if(dy<0) dy=0; if(dy>0) e.preventDefault(); c.style.transform='translateY('+dy+'px)'; },{passive:false});
-  c.addEventListener('touchend',()=>{ if(!on) return; on=false; c.style.transition=''; if(dy>170) closeSheet(); c.style.transform=''; },{passive:true});
+  c.addEventListener('touchend',()=>{ if(!on) return; on=false; if(dy>170){ closeSheet(); } else { c.style.transition=''; c.style.transform=''; } },{passive:true});
 })();
 
 // 調整這週（完整 / 移動減量 / 加量）

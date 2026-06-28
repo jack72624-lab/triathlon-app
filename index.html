@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <!--
-  Tri Plan — 重新設計版（視覺 C v2 灰階 + 移動週/成對平衡 + 單堂課調整 + CWA 天氣）
-  ─────────────────────────────────────────────────────────────────────────
-  此檔為「設計預覽 + 完整新功能」的單檔示範（沿用 design-preview 的 markup/handler，
-  資料為 sample，狀態存 localStorage）。要併回你的 Firebase index.html 時：
-   1) 用本檔的 <style> 取代你的 <style>。
-   2) 用本檔的 renderWeek / renderOv / 各 sheet 函式取代對應段落。
-   3) 新增的附加層（不動你原本的 W / DATE / SAMPLE_ACTS / matchWeek …）：
-        - planOf() / weekMode / RECOVERY_TPL / BUILD_TPL / TRIP_TRAVEL  → 移動週/加量
-        - effectiveSessions() / sessionAdj                              → 單堂課換天/室內/略過
-        - fetchWeather() / weather / autoWeather()                      → CWA 天氣分級
-      把這些狀態改成寫進你的使用者文件 + push() 即可（本檔用 localStorage 代替）。
-   4) 保留的 id / handler 名稱皆未更動。
+  Tri Plan — 三鐵打卡 PWA（正式版）。單檔：vanilla JS + Firebase compat（Google 登入 + Firestore 同步）。
+  狀態 checks/bonus/weekMode/sessionAdj/suggestions 存 localStorage 快取 + 防抖寫 Firestore；未填 config 退本機預覽。
+  天氣走 Open-Meteo 客端。部署：firebase deploy → tri-jack72624-91e31.web.app（GitHub: jack72624-lab/triathlon-app）。
 -->
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Tri Plan</title>
 <meta name="theme-color" content="#161b26">
 <link rel="icon" type="image/png" sizes="32x32" href="icon/icon-32.png">
@@ -140,7 +131,6 @@ button{font-family:inherit}
 .sess-rest .stitle{font-weight:500;color:var(--faint)}
 .tags{display:flex;align-items:center;gap:5px;margin-top:4px;flex-wrap:wrap}
 .tag{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px}
-.tag-note{font-size:10px;color:var(--faint)}
 .chk{flex:0 0 26px;width:26px;height:26px;border-radius:99px;border:1.5px solid #d8dbe2;background:#fff;display:flex;align-items:center;justify-content:center;transition:transform .1s;position:relative}
 .chk.on{background:var(--done);border-color:var(--done)}
 .sess:active .chk{transform:scale(.86)}
@@ -191,7 +181,7 @@ button{font-family:inherit}
 .ovmid{flex:1;min-width:0}
 .ovchips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .chip{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:5px}
-.chip-build{color:var(--key);background:var(--key-t)} .chip-rec{color:var(--flex);background:#e3e7ee} .chip-peak{color:var(--bonus);background:#fdf3e3}
+.chip-build{color:var(--key);background:var(--key-t)} .chip-rec{color:var(--flex);background:#e3e7ee}
 .chip-trip{display:flex;align-items:center;gap:3px;color:var(--key);background:#e0e6ef}
 .chip-boost{display:flex;align-items:center;gap:3px;color:var(--key);background:#e0e6ef}
 .ovdate{font-size:11px;color:var(--faint);margin-top:6px}
@@ -593,6 +583,7 @@ function weekendAdvice(w){
 /* ============================================================
    Claude 週回顧建議卡（weekly-review 寫進 tri_users.suggestions；接受→套用課表、略過→消掉）
    ============================================================ */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }  // 進 innerHTML 前跳脫（reason/dest 是雲端/Claude 來源）
 function sugTitle(s){
   if(s.action==='note'||s.dayIdx<0) return '提醒';
   const day=planOf(s.week).d[s.dayIdx]; const sess=day?sessionsOf(s.dayIdx,day)[s.sessionIdx]:null;
@@ -602,7 +593,7 @@ function sugTitle(s){
 }
 function sugCard(s){
   const apply=s.action!=='note'&&s.dayIdx>=0;
-  return `<div class="sug"><div class="sug-b"><div class="sug-t">${sugTitle(s)}</div><div class="sug-r">${s.reason||''}</div></div><div class="sug-act">${apply?`<button class="sug-yes" onclick="acceptSug('${s.id}')">接受</button><button onclick="dismissSug('${s.id}')">略過</button>`:`<button class="sug-yes" onclick="dismissSug('${s.id}')">知道了</button>`}</div></div>`;
+  return `<div class="sug"><div class="sug-b"><div class="sug-t">${sugTitle(s)}</div><div class="sug-r">${esc(s.reason)}</div></div><div class="sug-act">${apply?`<button class="sug-yes" onclick="acceptSug('${s.id}')">接受</button><button onclick="dismissSug('${s.id}')">略過</button>`:`<button class="sug-yes" onclick="dismissSug('${s.id}')">知道了</button>`}</div></div>`;
 }
 window.acceptSug=id=>{
   const s=suggestions.find(x=>x.id===id); if(!s) return;
@@ -835,7 +826,7 @@ function renderWeek(){
   let h='';
 
   if(plan.trip){
-    h+=`<div class="banner banner-dark"><div class="b-ic">${ico('pin','#8ea3c4',17)}</div><div style="flex:1;min-width:0"><div class="b-t">${plan.dest?plan.dest:'移動'}週</div><div class="b-s">已套用 ${plan.tplName} · 課程轉 Flex</div></div><div class="banner-act" onclick="setWeekMode(${cur},null)">恢復完整</div></div>`;
+    h+=`<div class="banner banner-dark"><div class="b-ic">${ico('pin','#8ea3c4',17)}</div><div style="flex:1;min-width:0"><div class="b-t">${esc(plan.dest||'移動')}週</div><div class="b-s">已套用 ${plan.tplName} · 課程轉 Flex</div></div><div class="banner-act" onclick="setWeekMode(${cur},null)">恢復完整</div></div>`;
   }
   if(todayWeek()===cur) h+=weatherBanner();
   const wa=weekendAdvice(cur); if(wa) h+=`<div class="banner banner-dark"><div class="b-ic">${ico('rain','#8ea3c4',17)}</div><div style="flex:1;min-width:0"><div class="b-t">週末預報</div><div class="b-s">${wa}</div></div></div>`;
@@ -890,7 +881,6 @@ function renderWeek(){
   $('#weekView').innerHTML=h;
   if(_introOn) introAnimate('#weekView');
 }
-function weekOfTodayMaybe(){ const t=new Date(); const w=weekOf(t.toISOString().slice(0,10)); return (w>=1&&w<=12)?w:cur; }
 function weekDots(w){
   let s='';
   for(let di=0;di<7;di++){
@@ -912,7 +902,7 @@ function renderOv(){
     let chips='';
     const tcls=plan.type==='Recovery'?'chip-rec':'chip-build';
     chips+=`<span class="chip ${tcls}">${plan.type==='Recovery'?'減量':'導入'}</span>`;
-    if(m&&m.mode==='recovery') chips+=`<span class="chip chip-trip">${ico('pin','#516a8f',10,2)}${m.dest||'移動'}</span>`;
+    if(m&&m.mode==='recovery') chips+=`<span class="chip chip-trip">${ico('pin','#516a8f',10,2)}${esc(m.dest||'移動')}</span>`;
     if(m&&m.mode==='build') chips+=`<span class="chip chip-boost">${ico('trend','#516a8f',10,2.2)}加量</span>`;
     h+=`<div class="ovrow ${rec?'rec':''}" onclick="cur=${w};setMode('week')">
       <div class="ovnum">${String(w).padStart(2,'0')}</div>
@@ -1024,7 +1014,7 @@ const SESS_INFO={
 // 看示範：開 YouTube 該動作教學（零素材零授權；用搜尋連結不會死連）
 function yt(q){ return `<a class="demo-lnk" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q+' 教學')}" target="_blank" rel="noopener">看示範 ›</a>`; }
 const STRENGTH_HTML=`<div class="proto"><h5>暖身 5min</h5><ul><li>髖繞環、徒手深蹲、弓箭步走 ${yt('跑者 動態暖身')}</li></ul><h5>主項（選 3–4，每項 2–3 組 × 8–12 下）</h5><ul><li><b>高腳杯深蹲</b> — 下肢整體 ${yt('高腳杯深蹲')}</li><li><b>羅馬尼亞硬舉</b> — 後鏈/臀腿，跑步推進力 ${yt('羅馬尼亞硬舉 RDL')}</li><li><b>後腳抬高分腿蹲</b> — 單腳，修左右失衡 ${yt('保加利亞分腿蹲')}</li><li><b>上階 / 單腳蹲</b> ${yt('啞鈴上階 step up')}</li></ul><h5>核心＋髖穩定（2–3 項）</h5><ul><li>死蟲 ${yt('死蟲 dead bug')}</li><li>側棒 ${yt('側棒 side plank')}</li><li>單腳臀橋 ${yt('單腳臀橋')}</li><li>鳥狗 ${yt('鳥狗 bird dog')}</li></ul><h5>收尾</h5><ul><li>提踵（接小腿離心）${yt('啞鈴提踵')}</li></ul></div><div class="dt-why">導入期重<b>動作品質與徵召</b>，不追大重量（Build 才進 MS 大重量低反覆）。複合、單腳、後鏈導向支援跑步經濟性與骨盆穩定；不排增肌型小腿課。依 PLAN §13：每週 2 次各 30–45min，AA→MS 漸進。</div>`;
-const CALF_HTML=`<div class="proto"><ul><li><b>滾筒</b> 腓腸肌＋比目魚肌，各 1–2min（找痛點停留）${yt('滾筒放鬆 小腿')}</li><li><b>離心提踵（Alfredson 型，阿基里斯實證核心）</b>：站階梯邊緣，雙腳提起 → 單腳緩慢放下到腳跟低於階梯。直膝 15 下 × 2、屈膝 15 下 × 2 ${yt('Alfredson 離心提踵 阿基里斯')}</li><li><b>短伸展 ≤10min</b>：靠牆小腿伸展，直膝＋屈膝各 30 秒 × 2 ${yt('靠牆小腿伸展')}</li></ul></div><div class="dt-why">PLAN §7 實證主力是<b>離心負荷</b>（非長靜態伸展）。定位是阿基里斯/腳踝健康維護，<b>不增粗、也不會明顯瘦小腿</b>。</div><div class="warn-note">⚠ 腳踝外側／膝外側若出現症狀 → 停課、找物理治療，別硬推（PLAN §9）。</div>`;
+const CALF_HTML=`<div class="proto"><ul><li><b>滾筒</b> 腓腸肌＋比目魚肌，各 1–2min（找痛點停留）${yt('滾筒放鬆 小腿')}</li><li><b>離心提踵（Alfredson 型，阿基里斯實證核心）</b>：站階梯邊緣，雙腳提起 → 單腳緩慢放下到腳跟低於階梯。直膝 15 下 × 2、屈膝 15 下 × 2 ${yt('Alfredson 離心提踵 阿基里斯')}</li><li><b>短伸展 ≤10min</b>：靠牆小腿伸展，直膝＋屈膝各 30 秒 × 2 ${yt('靠牆小腿伸展')}</li></ul></div><div class="dt-why">PLAN §7 實證主力是<b>離心負荷</b>（非長靜態伸展）。定位是阿基里斯/腳踝健康維護，<b>不增粗、也不會明顯瘦小腿</b>。</div><div class="warn-note"><span style="vertical-align:-2px">${ico('alert','#a6772e',13,2)}</span> 腳踝外側／膝外側若出現症狀 → 停課、找物理治療，別硬推（PLAN §9）。</div>`;
 function detailType(t){ const x=(t||'').toLowerCase();
   if(/calf|小腿/.test(x)) return 'calf';
   if(/strength|肌力|核心/.test(x)) return 'strength';
@@ -1100,10 +1090,12 @@ let auth,db;
 function isIOS(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);}
 function setSync(s){const b=$('#sync'),t=$('#sync-text');if(!b)return;if(!CLOUD){t.textContent='Local';return;}b.className='sync-badge '+s;t.textContent=s==='syncing'?'Syncing':s==='offline'?'Offline':'Synced';}
 function startSync(){
-  if(!currentUser)return;setSync('syncing');
+  if(!currentUser)return;
+  stopSync();                    // 冪等：先解除舊監聽，避免重複綁定/洩漏
+  setSync('syncing');
   _unsubDoc=db.collection('tri_users').doc(currentUser.uid).onSnapshot(doc=>{
-    if(doc.exists){const d=doc.data();checks=d.checks||{};bonus=d.bonus||{};weekMode=d.weekMode||{};sessionAdj=d.sessionAdj||{};suggestions=d.suggestions||[];saveLocal();
-      if(_recentWrite){_recentWrite=false;setSync('synced');return;} render();}
+    if(_recentWrite){_recentWrite=false;setSync('synced');return;}   // 自己寫入的回聲：不覆寫本地樂觀狀態（否則慢慢勾會吞打卡）
+    if(doc.exists){const d=doc.data();checks=d.checks||{};bonus=d.bonus||{};weekMode=d.weekMode||{};sessionAdj=d.sessionAdj||{};suggestions=d.suggestions||[];saveLocal();render();}
     setSync('synced');
   },()=>setSync('offline'));
   _unsubActs=db.collection('tri_users').doc(currentUser.uid).collection('activities').orderBy('date','desc').onSnapshot(snap=>{
@@ -1115,6 +1107,7 @@ function stopSync(){if(_unsubDoc){_unsubDoc();_unsubDoc=null;}if(_unsubActs){_un
 if(CLOUD){
   firebase.initializeApp(firebaseConfig);
   auth=firebase.auth(); db=firebase.firestore();
+  db.enablePersistence({synchronizeTabs:true}).catch(()=>{});   // 離線快取：離線打卡不丟（多分頁/不支援時靜默略過）
   $('#mode-pill').textContent='Cloud sync';
   $('#auth-note').textContent='用 Google 登入 — 打卡與課表調整跨裝置同步。';
   let signing=false;

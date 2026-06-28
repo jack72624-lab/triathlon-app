@@ -892,15 +892,8 @@ function renderFoot(){
   const opts=[['auto','自動'],['clear','晴'],['rain','雨'],['typhoon','颱風']];
   const sel=wxOverride||'auto';
   const tc=(weatherByDate[todayStr()]||{}).city||HOME_CITY;
-  $('#foot').innerHTML=`Challenge Taiwan 226 · 2027-04-24<div style="margin-top:8px;font-size:10px;color:var(--hint)">天氣 Open-Meteo（${tc}）· 今天可手動覆寫</div><div class="wsim">${opts.map(o=>`<button class="${sel===o[0]?'on':''}" onclick="setWsim('${o[0]}')">${o[1]}</button>`).join('')}</div><div style="margin-top:14px"><button id="haptic-test" onclick="testHaptic(this)" style="font-size:11px;font-weight:700;color:var(--sub);background:#e9ebef;border:none;border-radius:9px;padding:9px 16px;cursor:pointer">觸覺測試 · 點我</button></div>`;
+  $('#foot').innerHTML=`Challenge Taiwan 226 · 2027-04-24<div style="margin-top:8px;font-size:10px;color:var(--hint)">天氣 Open-Meteo（${tc}）· 今天可手動覆寫</div><div class="wsim">${opts.map(o=>`<button class="${sel===o[0]?'on':''}" onclick="setWsim('${o[0]}')">${o[1]}</button>`).join('')}</div>`;
 }
-// 觸覺診斷：真實點擊當下直接觸發、零重繪。按鈕文字會翻成「已觸發」證明程式有跑到——
-// 文字翻了卻沒感覺 = iPhone 真的不給觸覺（只能走原生封裝）；文字沒翻 = 載到舊版（清快取）。
-window.testHaptic=(btn)=>{
-  if(navigator.vibrate) navigator.vibrate(30);
-  iosHaptic();
-  if(btn){ const o=btn.textContent; btn.textContent='已觸發 · 有感覺到嗎？'; setTimeout(()=>btn.textContent=o,1600); }
-};
 
 function fmtKm(a){return a.distance_km?a.distance_km.toFixed(1)+'k':'';}
 function fmtTime(s){if(!s)return'';const m=Math.round(s/60);return m>=60?Math.floor(m/60)+':'+String(m%60).padStart(2,'0'):m+'m';}

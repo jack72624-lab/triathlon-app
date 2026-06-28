@@ -330,7 +330,7 @@ const W={
  8:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 7k easy · strides','core'],['Bike 1:10 Z2','keep'],['Run 7k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:15 + Brick run 18m','core'],['Long run 13k','core']]},
  9:{type:'Recovery',d:[['Swim 0:40 + Strength 30–45m','keep'],['Run 5k easy · strides','core'],['Bike 1:00 Z2','keep'],['Run 6k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:00 + Brick run 12m','core'],['Long run 10k','core']]},
  10:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 7k easy · strides','core'],['Bike 1:15 Z2','keep'],['Run 8k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:30 + Brick run 18m','core'],['Long run 13k','core']]},
- 11:{type:'Peak',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 7k easy · strides','core'],['Bike 1:15 Z2','keep'],['Run 8k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:30 + Brick run 20m','core'],['Long run 14k','core']]},
+ 11:{type:'Build',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 7k easy · strides','core'],['Bike 1:15 Z2','keep'],['Run 8k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:30 + Brick run 20m','core'],['Long run 14k','core']]},
  12:{type:'Recovery',d:[['Swim 0:45 + Strength 30–45m','keep'],['Run 6k easy · strides','core'],['Bike 1:00 Z2','keep'],['Run 6k easy + Strength 30–45m','core'],['Rest + Calf release','rest'],['Long bike 2:00 + Brick run 15m','core'],['Long run 11k','core']]},
 };
 const DATE={1:'Jun 29–Jul 5',2:'Jul 6–12',3:'Jul 13–19',4:'Jul 20–26',5:'Jul 27–Aug 2',6:'Aug 3–9',7:'Aug 10–16',8:'Aug 17–23',9:'Aug 24–30',10:'Aug 31–Sep 6',11:'Sep 7–13',12:'Sep 14–20'};
@@ -625,7 +625,7 @@ function renderWeek(){
   if(todayWeek()===cur) h+=weatherBanner();
   const wa=weekendAdvice(cur); if(wa) h+=`<div class="banner banner-dark"><div class="b-ic">${ico('rain','#8ea3c4',17)}</div><div style="flex:1;min-width:0"><div class="b-t">週末預報</div><div class="b-s">${wa}</div></div></div>`;
 
-  const eyebrow = plan.trip?'Recovery · 移動週':(plan.boosted?'Build · 加量週':(plan.type+' phase · Week '+cur));
+  const eyebrow = plan.trip?'導入期 · 移動週':(plan.boosted?'導入期 · 加量週':('導入期'+(plan.type==='Recovery'?' · 減量週':'')+' · Week '+cur));
   const hh = plan.trip?'放鬆就好':(pct>=.6?'狀態超棒':pct>0?'On track':'本週開始');
   h+=`<div class="card hero"><div class="hero-row">
     <div class="ring" style="width:96px;height:96px"><svg width="96" height="96"><circle cx="48" cy="48" r="42" fill="none" stroke="#edeff2" stroke-width="7"/><circle class="ring-c" cx="48" cy="48" r="42" fill="none" stroke="${ringCol}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg>
@@ -692,8 +692,8 @@ function renderOv(){
     const rec=plan.type==='Recovery'||(m&&m.mode==='recovery');
     const {total,done}=totals(w), pct=total?Math.round(done/total*100):0;
     let chips='';
-    const tcls=plan.type==='Recovery'?'chip-rec':plan.type==='Peak'?'chip-peak':'chip-build';
-    chips+=`<span class="chip ${tcls}">${plan.type}</span>`;
+    const tcls=plan.type==='Recovery'?'chip-rec':'chip-build';
+    chips+=`<span class="chip ${tcls}">${plan.type==='Recovery'?'減量':'導入'}</span>`;
     if(m&&m.mode==='recovery') chips+=`<span class="chip chip-trip">${ico('pin','#516a8f',10,2)}${m.dest||'移動'}</span>`;
     if(m&&m.mode==='build') chips+=`<span class="chip chip-boost">${ico('trend','#516a8f',10,2.2)}加量</span>`;
     h+=`<div class="ovrow ${rec?'rec':''}" onclick="cur=${w};setMode('week')">

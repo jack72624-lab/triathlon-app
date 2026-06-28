@@ -74,12 +74,17 @@ button{font-family:inherit}
 .menu-email{font-size:11px;color:var(--sub);margin-top:2px;word-break:break-all}
 .menu-item{padding:13px 16px;font-size:14px;font-weight:600;cursor:pointer}
 .menu-item:active{background:var(--bg)}
-.scroll{flex:1;overflow-y:auto;padding:16px 16px calc(34px + var(--safe-bot));-webkit-overflow-scrolling:touch}
+.scroll{flex:1;overflow-y:auto;padding:16px 16px calc(88px + var(--safe-bot));-webkit-overflow-scrolling:touch}
 
 /* ---------- Segmented ---------- */
-.seg{display:flex;gap:2px;background:#e9ebef;padding:3px;border-radius:11px;margin-bottom:16px}
-.seg button{flex:1;border:none;background:none;padding:9px 0;font-size:12.5px;font-weight:600;color:var(--sub);border-radius:8px;cursor:pointer}
-.seg button.on{background:var(--card);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgba(20,22,30,.08)}
+/* ---------- 底部分頁（tubelight 風格：浮動藥丸 + 發光燈管滑動）---------- */
+.tnav{position:fixed;left:50%;bottom:calc(16px + var(--safe-bot));transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:2px;background:rgba(255,255,255,.72);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);border:1px solid var(--border);border-radius:99px;padding:4px;box-shadow:0 10px 34px rgba(20,22,30,.14)}
+.tnav-btn{position:relative;z-index:1;border:none;background:none;padding:9px 24px;font-size:13px;font-weight:700;color:var(--sub);border-radius:99px;cursor:pointer;transition:color .25s;white-space:nowrap;font-family:inherit}
+.tnav-btn.on{color:var(--key)}
+.tnav-lamp{position:absolute;left:0;top:0;border-radius:99px;background:var(--key-t);transition:transform .4s cubic-bezier(.34,1.4,.5,1),width .4s cubic-bezier(.34,1.4,.5,1);z-index:0;pointer-events:none}
+.tnav-lamp i{position:absolute;top:-4px;left:50%;transform:translateX(-50%);width:26px;height:4px;border-radius:0 0 6px 6px;background:var(--key)}
+.tnav-lamp i:before{content:"";position:absolute;left:50%;top:-7px;transform:translateX(-50%);width:44px;height:15px;background:rgba(81,106,143,.38);border-radius:50%;filter:blur(9px)}
+@media (prefers-reduced-motion:reduce){.tnav-lamp{transition:none}}
 
 /* ---------- Cards ---------- */
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r)}
@@ -343,11 +348,15 @@ button{font-family:inherit}
     </div>
   </div>
   <div class="scroll">
-    <div class="seg"><button id="segWeek" class="on" onclick="setMode('week')">This Week</button><button id="segOv" onclick="setMode('ov')">Overview</button></div>
     <div id="weekView"></div>
     <div id="ovView" style="display:none"></div>
     <div class="foot" id="foot"></div>
   </div>
+  <nav class="tnav" id="tnav">
+    <span class="tnav-lamp" id="tnavLamp"><i></i></span>
+    <button class="tnav-btn on" id="segWeek" onclick="setMode('week')">This Week</button>
+    <button class="tnav-btn" id="segOv" onclick="setMode('ov')">Overview</button>
+  </nav>
 </div>
 
 <div id="sheet"><div class="sheet-dim" onclick="closeSheet()"></div><div class="sheet-card" id="sheet-card"></div></div>
@@ -750,7 +759,15 @@ function render(){
   mode==='week'?renderWeek():renderOv();
   renderFoot();
 }
-window.setMode=m=>{mode=m;$('#segWeek').className=m==='week'?'on':'';$('#segOv').className=m==='ov'?'on':'';$('#weekView').style.display=m==='week'?'block':'none';$('#ovView').style.display=m==='ov'?'block':'none';render();};
+// tubelight 燈管：量測當前分頁按鈕，把發光高亮滑過去（寬度不同也會平滑變形）
+function moveLamp(){
+  const lamp=$('#tnavLamp'); if(!lamp) return;
+  const btn=mode==='ov'?$('#segOv'):$('#segWeek'); if(!btn||!btn.offsetWidth) return;
+  lamp.style.width=btn.offsetWidth+'px'; lamp.style.height=btn.offsetHeight+'px';
+  lamp.style.transform='translate('+btn.offsetLeft+'px,'+btn.offsetTop+'px)';
+}
+window.addEventListener('resize',moveLamp);
+window.setMode=m=>{mode=m;$('#segWeek').classList.toggle('on',m==='week');$('#segOv').classList.toggle('on',m==='ov');$('#weekView').style.display=m==='week'?'block':'none';$('#ovView').style.display=m==='ov'?'block':'none';moveLamp();render();};
 /* ---- 情感化設計 · 打卡完成回饋（點 1）----------------------------------
    完成一次訓練：勾勾描繪 + 輕彈 + 擴散光環 +（Android）震動。
    跑步是弱項 → 額外給鼓勵浮字 + 雙光環 + 較強震動（針對這位使用者的關鍵客製）。
@@ -1096,7 +1113,7 @@ function renderDayPicker(){
 /* ---- nav menu / auth ---- */
 window.toggleMenu=()=>$('#user-menu').classList.toggle('open');
 window.doSignOut=()=>{toggleMenu();if(CLOUD&&auth)auth.signOut();else{$('#shell').classList.remove('on');$('#auth').style.display='flex';$('#auth').classList.remove('gone');}};
-function enter(){$('#auth').classList.add('gone');$('#shell').classList.add('on');setTimeout(()=>$('#auth').style.display='none',420);_vKey=null;render();fetchWeather();}
+function enter(){$('#auth').classList.add('gone');$('#shell').classList.add('on');setTimeout(()=>$('#auth').style.display='none',420);_vKey=null;render();fetchWeather();moveLamp();if(document.fonts&&document.fonts.ready)document.fonts.ready.then(moveLamp);}
 
 /* ---- Firebase auth + Firestore 同步（沿用「收入分配」驗證過的寫法） ---- */
 let auth,db;

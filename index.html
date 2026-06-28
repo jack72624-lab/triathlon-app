@@ -22,7 +22,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#15171c; --sub:#8b93a3; --faint:#a2a9b5; --hint:#c2c7d0;
+  --ink:#15171c; --sub:#6b7280; --faint:#767d8b; --hint:#9aa0ab;
   --bg:#f6f7f9; --card:#fff; --border:#e9ebef; --line:#eef0f3; --line2:#f2f3f6;
   --nav:#161b26;
   --key:#516a8f; --keep:#5e827b; --flex:#7b8494;
@@ -131,6 +131,8 @@ button{font-family:inherit}
 .sess-rest .stitle{font-weight:500;color:var(--faint)}
 .tags{display:flex;align-items:center;gap:5px;margin-top:4px;flex-wrap:wrap}
 .tag{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px}
+.sdetail{flex:0 0 auto;width:22px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--hint);cursor:pointer}
+.sdetail svg{width:16px;height:16px}
 .chk{flex:0 0 26px;width:26px;height:26px;border-radius:99px;border:1.5px solid #d8dbe2;background:#fff;display:flex;align-items:center;justify-content:center;transition:transform .1s;position:relative}
 .chk.on{background:var(--done);border-color:var(--done)}
 .sess:active .chk{transform:scale(.86)}
@@ -857,6 +859,7 @@ function renderWeek(){
       h+=`<div class="sess" data-k="${cur}_${di}_${si}" style="border-left:3px solid ${LVCOL[s.lv]}" onclick="toggle(${di},${si})">
         <div class="sqr" style="background:${LVTINT[s.lv]}" onclick="event.stopPropagation();openAdj(${di},${si})">${ico(discIcon(s.t,s.lv),LVCOL[s.lv],19)}</div>
         <div class="sbody"><div class="stitle ${titleCls}">${s.t}${s.test?' · test':''}</div>${tags?`<div class="tags">${tags}</div>`:''}</div>
+        <div class="sdetail" onclick="event.stopPropagation();openAdj(${di},${si})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
         <div class="chk ${s.done?'on':''}">${s.done?ico('check','#fff',13,3.5):''}</div></div>`;
     });
   });

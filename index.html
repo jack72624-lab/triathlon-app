@@ -480,8 +480,9 @@ function planOf(w){
   const m=weekMode[w];
   if(!m) return Object.assign({trip:false,boosted:false},W[w]);
   if(m.mode==='recovery'){
-    const d = m.tpl==='orig'? RECOVERY_TPL : TRIP_TRAVEL;
-    return {type:'Recovery',trip:true,dest:m.dest||'',tplName:(m.tpl==='orig'?'原減量課表':'旅行特化'),d};
+    const isTravel = m.tpl!=='orig';                                  // orig=在家減量(非 trip)；travel=旅行特化(trip)
+    const d = isTravel ? TRIP_TRAVEL : RECOVERY_TPL;
+    return {type:'Recovery',trip:isTravel,deloaded:!isTravel,dest:m.dest||'',tplName:(isTravel?'旅行特化':'原減量課表'),d};
   }
   if(m.mode==='build') return {type:'Build',boosted:true,d:BUILD_TPL};
   return Object.assign({trip:false},W[w]);
@@ -847,7 +848,9 @@ function renderWeek(){
   let h='';
 
   if(plan.trip){
-    h+=`<div class="banner banner-dark"><div class="b-ic">${ico('pin','#8ea3c4',17)}</div><div style="flex:1;min-width:0"><div class="b-t">${esc(plan.dest||'移動')}週</div><div class="b-s">已套用 ${plan.tplName} · 課程轉 Flex</div></div><div class="banner-act" onclick="setWeekMode(${cur},null)">恢復完整</div></div>`;
+    h+=`<div class="banner banner-dark"><div class="b-ic">${ico('pin','#8ea3c4',17)}</div><div style="flex:1;min-width:0"><div class="b-t">${esc(plan.dest||'旅行')}週</div><div class="b-s">已套用旅行特化 · 課程轉 Flex</div></div><div class="banner-act" onclick="setWeekMode(${cur},null)">恢復完整</div></div>`;
+  } else if(plan.deloaded){
+    h+=`<div class="banner banner-dark"><div class="b-ic">${ico('home','#8ea3c4',17)}</div><div style="flex:1;min-width:0"><div class="b-t">減量週</div><div class="b-s">已套用原減量課表 · 訓練量打折</div></div><div class="banner-act" onclick="setWeekMode(${cur},null)">恢復完整</div></div>`;
   }
   if(todayWeek()===cur) h+=weatherBanner();
   const wa=weekendAdvice(cur); if(wa) h+=`<div class="banner banner-dark"><div class="b-ic">${ico('rain','#8ea3c4',17)}</div><div style="flex:1;min-width:0"><div class="b-t">週末預報</div><div class="b-s">${wa}</div></div></div>`;
@@ -924,7 +927,7 @@ function renderOv(){
     let chips='';
     const tcls=plan.type==='Recovery'?'chip-rec':'chip-build';
     chips+=`<span class="chip ${tcls}">${plan.type==='Recovery'?'減量':'導入'}</span>`;
-    if(m&&m.mode==='recovery') chips+=`<span class="chip chip-trip">${ico('pin','#516a8f',10,2)}${esc(m.dest||'移動')}</span>`;
+    if(m&&m.mode==='recovery'&&m.dest) chips+=`<span class="chip chip-trip">${ico('pin','#516a8f',10,2)}${esc(m.dest)}</span>`;
     if(m&&m.mode==='build') chips+=`<span class="chip chip-boost">${ico('trend','#516a8f',10,2.2)}加量</span>`;
     h+=`<div class="ovrow ${rec?'rec':''}" onclick="cur=${w};setMode('week')">
       <div class="ovnum">${String(w).padStart(2,'0')}</div>
@@ -988,7 +991,7 @@ let tripDraft={mode:'recovery',tpl:'travel'};
 window.openTrip=(w)=>{
   const orig=W[w].type;
   const m=weekMode[w];
-  tripDraft={ w, mode: m?m.mode:'recovery', tpl: (m&&m.tpl)||'travel', pair:false };
+  tripDraft={ w, mode: m?m.mode:'recovery', tpl: (m&&m.tpl)||'travel', dest:(m&&m.dest)||'高雄', pair:false };
   renderTrip();
 };
 function renderTrip(){
@@ -999,7 +1002,7 @@ function renderTrip(){
    <div class="sh-head"><div class="sh-ic">${ico('pin','#516a8f',20)}</div><div><div class="sh-h">Week ${w} · 調整這週</div><div class="sh-s">${DATE[w]}</div></div></div>
    <div class="opt ${sel==='full'?'sel':''}" onclick="tripPick('full')"><div class="radio">${sel==='full'?dot():''}</div><div class="opt-b"><div class="opt-t">完整課表</div><div class="opt-d">${orig} · 原訂</div></div></div>
    <div class="opt ${sel==='recovery'?'sel':''}" onclick="tripPick('recovery')"><div class="radio">${sel==='recovery'?dot():''}</div><div class="opt-b"><div class="opt-t">減量・移動週 <span class="tag" style="color:var(--key);background:#e6ebf3;display:inline-flex">適合外出</span></div><div class="opt-d">Recovery · 課程轉 Flex</div>
-      ${sel==='recovery'?`<div class="subtoggle" onclick="event.stopPropagation()"><button class="${tripDraft.tpl==='travel'?'on':''}" onclick="tripTpl('travel')">旅行特化</button><button class="${tripDraft.tpl==='orig'?'on':''}" onclick="tripTpl('orig')">原減量課表</button></div>`:''}
+      ${sel==='recovery'?`<div class="subtoggle" onclick="event.stopPropagation()"><button class="${tripDraft.tpl==='travel'?'on':''}" onclick="tripTpl('travel')">旅行特化</button><button class="${tripDraft.tpl==='orig'?'on':''}" onclick="tripTpl('orig')">原減量課表</button></div>${tripDraft.tpl==='travel'?`<div class="subtoggle" onclick="event.stopPropagation()" style="margin-top:6px"><button class="${tripDraft.dest==='高雄'?'on':''}" onclick="tripDest('高雄')">高雄週</button><button class="${tripDraft.dest==='旅行'?'on':''}" onclick="tripDest('旅行')">旅行</button></div>`:''}`:''}
    </div></div>
    <div class="opt ${sel==='build'?'sel':''}" onclick="tripPick('build')"><div class="radio">${sel==='build'?dot():''}</div><div class="opt-b"><div class="opt-t">加量・正常訓練</div><div class="opt-d">Build · 把這週練起來</div></div></div>`;
   if(sel==='recovery' && nextRec){
@@ -1011,10 +1014,11 @@ function renderTrip(){
 function dot(){return '<span style="width:9px;height:9px;border-radius:99px;background:#fff;display:block"></span>';}
 window.tripPick=m=>{tripDraft.mode=m;renderTrip();};
 window.tripTpl=t=>{tripDraft.tpl=t;renderTrip();};
+window.tripDest=d=>{tripDraft.dest=d;renderTrip();};
 window.tripConfirm=()=>{
   const w=tripDraft.w;
   if(tripDraft.mode==='full') setWeekModeSilent(w,null);
-  else if(tripDraft.mode==='recovery'){ setWeekModeSilent(w,'recovery',{tpl:tripDraft.tpl,dest:'高雄'}); if(tripDraft.pair && W[w+1]&&W[w+1].type==='Recovery') setWeekModeSilent(w+1,'build'); }
+  else if(tripDraft.mode==='recovery'){ setWeekModeSilent(w,'recovery',{tpl:tripDraft.tpl,dest:tripDraft.tpl==='orig'?'':(tripDraft.dest||'高雄')}); if(tripDraft.pair && W[w+1]&&W[w+1].type==='Recovery') setWeekModeSilent(w+1,'build'); }
   else setWeekModeSilent(w,'build');
   push(); closeSheet(); render();
 };

@@ -519,8 +519,9 @@ window.adjClear=(di,si)=>{delete sessionAdj[cur+'_'+di+'_'+si];push();closeSheet
    抓新北+高雄兩地 7 天逐日預報，每個日期依「那天所在週是否去高雄」挑城市。
    用途：①今天 banner（一鍵調整今天）②每日預報小標 ③週末關鍵課對調建議。
    ============================================================ */
-const HOME_CITY='新北市', TRIP_CITY='高雄市';
-const CITY_COORD={ '新北市':[25.012,121.465], '高雄市':[22.631,120.302] };  // 板橋一帶 / 高雄市區
+const TRIP_CITY='高雄市', TRIP_COORD=[22.631,120.302];   // 高雄市區（高雄週固定抓這）
+let HOME_LABEL='新北市', HOME_COORD=[25.012,121.465];    // 「在地」預設新北；取得裝置定位後改成你實際所在地
+let _geoTried=false;
 let weatherByDate={};   // {'YYYY-MM-DD':{level,pop,code,wind,city}}
 let _wxRaw=null;        // 兩地原始 daily（換城市時免重抓、重算即可）
 let wxOverride=null;    // 手動覆寫「今天」（'clear'|'rain'|'typhoon'|null），僅本次工作階段
@@ -530,7 +531,7 @@ function dateOf(w,di){ return ymd(new Date(WK_START.getTime()+((w-1)*7+di)*864e5
 function todayStr(){ return ymd(new Date()); }
 function todayWeek(){ const w=weekOf(todayStr()); return (w>=1&&w<=12)?w:null; }   // 今天落第幾週（課表外=null）
 function todayIdx(){ return (new Date().getDay()+6)%7; }                            // 今天星期幾（一=0）
-function cityForWeek(w){ const m=weekMode[w]; return (m&&m.mode==='recovery'&&/高雄/.test(m.dest||''))?TRIP_CITY:HOME_CITY; }
+function cityForWeek(w){ const m=weekMode[w]; return (m&&m.mode==='recovery'&&/高雄/.test(m.dest||''))?'trip':'home'; }  // 高雄週固定高雄；其餘＝在地（裝置定位或新北）
 
 const WMO_TXT={0:'晴',1:'晴時多雲',2:'多雲',3:'陰',45:'霧',48:'霧',51:'毛毛雨',53:'毛毛雨',55:'毛毛雨',56:'凍雨',57:'凍雨',61:'小雨',63:'雨',65:'大雨',66:'凍雨',67:'凍雨',71:'雪',73:'雪',75:'大雪',77:'雪珠',80:'陣雨',81:'陣雨',82:'強陣雨',85:'陣雪',86:'陣雪',95:'雷雨',96:'雷雨夾雹',99:'雷雨夾雹'};
 function wxText(c){ return WMO_TXT[c]||'—'; }
@@ -547,22 +548,35 @@ function todayLevel(){ if(wxOverride) return wxOverride; const f=weatherByDate[t
 // 從兩地原始資料，依每個日期所在週的城市，重算 weatherByDate（render 時呼叫，免重抓）
 function resolveWeather(){
   if(!_wxRaw) return;
-  const times=_wxRaw[HOME_CITY].time, m={};
+  const times=_wxRaw.home.time, m={};
   times.forEach((dt,i)=>{
-    const d=_wxRaw[cityForWeek(weekOf(dt))];
+    const key=cityForWeek(weekOf(dt)), d=_wxRaw[key];
     const pop=d.precipitation_probability_max[i], code=d.weather_code[i], wind=d.wind_speed_10m_max[i];
-    m[dt]={ pop, code, wind, city:cityForWeek(weekOf(dt)), level:levelFromForecast(pop,code,wind) };
+    m[dt]={ pop, code, wind, city:(key==='trip'?TRIP_CITY:HOME_LABEL), level:levelFromForecast(pop,code,wind) };
   });
   weatherByDate=m;
 }
+// 取得裝置位置（只問一次）→ 更新「在地」座標與標籤；拒絕/失敗/逾時 → 維持新北
+function ensureLocation(){
+  return new Promise(res=>{
+    if(_geoTried || !navigator.geolocation) return res();
+    _geoTried=true;
+    navigator.geolocation.getCurrentPosition(
+      p=>{ HOME_COORD=[p.coords.latitude,p.coords.longitude]; HOME_LABEL='目前位置'; res(); },
+      ()=>res(),
+      { timeout:6000, maximumAge:600000 }
+    );
+  });
+}
 async function fetchWeather(){
+  await ensureLocation();
   try{
-    const daily=await Promise.all([HOME_CITY,TRIP_CITY].map(async c=>{
-      const cc=CITY_COORD[c];
-      const u=`https://api.open-meteo.com/v1/forecast?latitude=${cc[0]}&longitude=${cc[1]}&daily=precipitation_probability_max,weather_code,wind_speed_10m_max&timezone=Asia%2FTaipei&forecast_days=7`;
+    const grab=async cc=>{
+      const u=`https://api.open-meteo.com/v1/forecast?latitude=${cc[0]}&longitude=${cc[1]}&daily=precipitation_probability_max,weather_code,wind_speed_10m_max&timezone=auto&forecast_days=7`;
       return (await (await fetch(u)).json()).daily;
-    }));
-    _wxRaw={ [HOME_CITY]:daily[0], [TRIP_CITY]:daily[1] };
+    };
+    const [home,trip]=await Promise.all([grab(HOME_COORD), grab(TRIP_COORD)]);
+    _wxRaw={ home, trip };
     resolveWeather(); render();
   }catch(e){ /* 抓不到就保留上次 */ }
 }
@@ -944,7 +958,7 @@ function renderOv(){
 function renderFoot(){
   const opts=[['auto','自動'],['clear','晴'],['rain','雨'],['typhoon','颱風']];
   const sel=wxOverride||'auto';
-  const tc=(weatherByDate[todayStr()]||{}).city||HOME_CITY;
+  const tc=(weatherByDate[todayStr()]||{}).city||HOME_LABEL;
   $('#foot').innerHTML=`Challenge Taiwan 226 · 2027-04-24<div style="margin-top:8px;font-size:10px;color:var(--hint)">天氣 Open-Meteo（${tc}）· 今天可手動覆寫</div><div class="wsim">${opts.map(o=>`<button class="${sel===o[0]?'on':''}" onclick="setWsim('${o[0]}')">${o[1]}</button>`).join('')}</div>`;
 }
 

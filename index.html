@@ -98,7 +98,7 @@ button{font-family:inherit}
 
 /* hero */
 .hero{padding:22px 20px;margin-bottom:14px}
-.hero-row{display:flex;align-items:center;gap:22px}
+.hero-row{display:flex;align-items:center;gap:12px}
 .ring{position:relative;flex-shrink:0}
 .ring svg{transform:rotate(-90deg)}
 .ring-c{transition:stroke-dashoffset .5s cubic-bezier(.4,0,.2,1)}
@@ -110,6 +110,8 @@ button{font-family:inherit}
 .hero-m{font-size:12px;color:var(--sub);margin-top:3px}
 .dots{display:flex;gap:6px;margin-top:14px}
 .dots i{width:9px;height:9px;border-radius:99px;display:block}
+.dots-side{margin-top:0;align-self:center;flex-shrink:0;gap:4px}
+.dots-side i{width:7px;height:7px}
 
 /* day list */
 .daylist{overflow:hidden}
@@ -669,11 +671,26 @@ function monthMileage(){ const now=new Date(),y=now.getFullYear(),m=now.getMonth
 
 // 數字滾動：0 → 目標（ease-out cubic）。尊重「減少動態」設定。
 function countUp(el,to,o){
-  o=o||{}; const dec=o.dec||0, suf=o.suf||'', pre=o.pre||'';
+  o=o||{}; const dec=o.dec||0, suf=o.suf||'', pre=o.pre||'', from=o.from||0;
   const fmt=v=>pre+(+v).toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec})+suf;
   if(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches){ el.textContent=fmt(to); return; }
   const t0=performance.now(), dur=o.dur||850;
-  (function step(t){ const k=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-k,3); el.textContent=fmt(to*e); if(k<1) requestAnimationFrame(step); else el.textContent=fmt(to); })(t0);
+  (function step(t){ const k=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-k,3); el.textContent=fmt(from+(to-from)*e); if(k<1) requestAnimationFrame(step); else el.textContent=fmt(to); })(t0);
+}
+// 打卡完成時：圓環(%／done／弧線)與分項(數字／長條)從「舊值」滑到「新值」，不瞬間跳。
+function snapProgress(){ const t=totals(cur), dp=weekDiscProgress(cur); return {done:t.done,total:t.total,pct:t.total?t.done/t.total:0,disc:dp.done}; }
+function animateProgressDelta(pre){
+  const root=$('#weekView'); if(!root||!pre) return;
+  const t=totals(cur), dp=weekDiscProgress(cur), C=2*Math.PI*42, nowPct=t.total?t.done/t.total:0, ease='cubic-bezier(.4,0,.2,1)';
+  const pctEl=root.querySelector('.ring-pct .pctnum'); if(pctEl) countUp(pctEl,Math.round(nowPct*100),{from:Math.round(pre.pct*100),dur:650});
+  const doneEl=root.querySelector('.ring-sub .donenum'); if(doneEl) countUp(doneEl,t.done,{from:pre.done,dur:650});
+  const arc=root.querySelector('.ring-c');
+  if(arc){ const newOff=arc.getAttribute('stroke-dashoffset'); arc.style.transition='none'; arc.style.strokeDashoffset=(C*(1-pre.pct)).toFixed(1); arc.getBoundingClientRect(); requestAnimationFrame(()=>{ arc.style.transition='stroke-dashoffset .6s '+ease; arc.style.strokeDashoffset=newOff; }); }
+  ['swim','ride','run'].forEach(key=>{
+    const numEl=root.querySelector('.cup[data-disc="'+key+'"]'); if(numEl) countUp(numEl,dp.done[key],{from:pre.disc[key],dur:650});
+    const bar=root.querySelector('.disc-bar i[data-disc="'+key+'"]');
+    if(bar){ const newW=bar.style.width, pl=dp.plan[key]||0, oldW=(pl?Math.round(pre.disc[key]/pl*100):0)+'%'; bar.style.transition='none'; bar.style.width=oldW; bar.getBoundingClientRect(); requestAnimationFrame(()=>{ bar.style.transition='width .6s '+ease; bar.style.width=newW; }); }
+  });
 }
 // 產生一個可滾動的數字 span（HTML 內已是最終值 → 不播放時直接正確；播放時由 introAnimate 從 0 滾上來）
 function cup(v,dec,suf,pre){
@@ -693,7 +710,8 @@ function renderProgress(w){
   const {done,plan}=weekDiscProgress(w), vol=weekVolume(w), mkm=monthMileage();
   const bars=[['swim','swim','游'],['ride','bike','騎'],['run','run','跑']].map(([key,icn,zh])=>{
     const dn=done[key]||0, pl=plan[key]||0, pct=pl?Math.round(dn/pl*100):0;
-    return `<div class="disc"><div class="disc-h">${ico(icn,'#516a8f',15,2)}<b class="num">${cup(dn)}</b><span class="num">/${pl}</span></div><div class="disc-bar"><i style="width:${pct}%"></i></div><div class="disc-l">${zh}</div></div>`;
+    const cnt=`<span class="cup" data-disc="${key}" data-to="${dn}" data-dec="0" data-suf="" data-pre="">${dn}</span>`;
+    return `<div class="disc"><div class="disc-h">${ico(icn,'#516a8f',15,2)}<b class="num">${cnt}</b><span class="num">/${pl}</span></div><div class="disc-bar"><i data-disc="${key}" style="width:${pct}%"></i></div><div class="disc-l">${zh}</div></div>`;
   }).join('');
   return `<div class="card prog${IC}">
     <div class="prog-cd">
@@ -758,8 +776,9 @@ window.toggle=(di,si)=>{
     if(navigator.vibrate) navigator.vibrate(isRun?[10,40,16]:15);            // Android：自訂節奏
     iosHaptic();                                                             // iPhone Safari 17.4+：隱藏 switch 單下輕點
   }
+  const pre=(!was)?snapProgress():null;                                      // 完成前先記錄進度，render 後滑到新值
   checks[k]=!checks[k]; push(); render();
-  if(!was&&checks[k]) celebrateCheck(k,di,si);                               // 視覺動畫（光環/勾勾描繪/跑步浮字）照舊
+  if(!was&&checks[k]){ celebrateCheck(k,di,si); animateProgressDelta(pre); } // 光環/勾勾/浮字 + 圓環與分項滑動
 };
 window.exAct=(id,yes)=>{bonus[id]=yes?1:0;push();renderWeek();};
 
@@ -806,9 +825,9 @@ function renderWeek(){
   const hh = plan.trip?'放鬆就好':(pct>=.6?'狀態超棒':pct>0?'On track':'本週開始');
   h+=`<div class="card hero${IC}"><div class="hero-row">
     <div class="ring" style="width:96px;height:96px"><svg width="96" height="96"><circle cx="48" cy="48" r="42" fill="none" stroke="#edeff2" stroke-width="7"/><circle class="ring-c" cx="48" cy="48" r="42" fill="none" stroke="${ringCol}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg>
-      <div class="ring-t"><span class="ring-pct" style="font-size:26px;color:${pct?'var(--ink)':'var(--faint)'}">${Math.round(pct*100)}<span style="font-size:13px;color:var(--faint)">%</span></span><span class="ring-sub">${done} / ${total}</span></div></div>
-    <div style="flex:1;min-width:0"><div class="hero-ey">${eyebrow}</div><div class="hero-h">${hh}</div><div class="hero-m">${DATE[cur]}${plan.trip?' · 全部彈性':''}</div>
-    <div class="dots">${weekDots(cur)}</div></div></div>`;
+      <div class="ring-t"><span class="ring-pct" style="font-size:26px;color:${pct?'var(--ink)':'var(--faint)'}"><span class="pctnum">${Math.round(pct*100)}</span><span style="font-size:13px;color:var(--faint)">%</span></span><span class="ring-sub"><span class="donenum">${done}</span> / ${total}</span></div></div>
+    <div style="flex:1;min-width:0"><div class="hero-ey">${eyebrow}</div><div class="hero-h">${hh}</div><div class="hero-m">${DATE[cur]}${plan.trip?' · 全部彈性':''}</div></div>
+    <div class="dots dots-side">${weekDots(cur)}</div></div>`;
 
   h+=renderProgress(cur);
 

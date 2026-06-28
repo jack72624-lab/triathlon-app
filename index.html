@@ -204,6 +204,34 @@ button{font-family:inherit}
 .foot .wsim button{border:none;background:none;padding:6px 11px;font-size:11px;font-weight:700;color:var(--sub);border-radius:6px;cursor:pointer}
 .foot .wsim button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(20,22,30,.08)}
 
+/* ---------- 進度卡（情感化設計 · 點 2/3/4：倒數 + streak + 分項進度 + 數字滾動）---------- */
+.prog{padding:18px 18px 16px;margin-bottom:14px}
+.prog-cd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.cd-n{font-size:34px;font-weight:800;color:var(--ink);line-height:1;letter-spacing:-1px}
+.cd-n i{font-size:15px;font-weight:700;color:var(--faint);font-style:normal;margin-left:3px}
+.cd-l{font-size:11px;color:var(--sub);margin-top:6px;font-weight:600}
+.prog-streak{text-align:right;flex-shrink:0}
+.streak-n{display:inline-flex;align-items:center;gap:4px;font-size:22px;font-weight:800;color:var(--bonus);line-height:1}
+.streak-l{font-size:10px;color:var(--faint);font-weight:700;margin-top:5px;letter-spacing:.04em}
+.disc-row{display:flex;gap:10px;margin:16px 0 2px}
+.disc{flex:1}
+.disc-h{display:flex;align-items:center;gap:4px;font-size:15px;font-weight:800;color:var(--ink)}
+.disc-h span{color:var(--faint);font-weight:700;font-size:12px}
+.disc-bar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin:7px 0 5px}
+.disc-bar i{display:block;height:100%;background:var(--key);border-radius:99px}
+.disc-l{font-size:10px;color:var(--faint);font-weight:700}
+.stat-trio{display:flex;border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+.stat-trio>div{flex:1;text-align:center}
+.stat-trio>div+div{border-left:1px solid var(--line)}
+.stat-trio b{display:block;font-size:17px;font-weight:800;color:var(--ink)}
+.stat-trio b i{font-size:11px;color:var(--faint);font-style:normal;font-weight:700;margin-left:1px}
+.stat-trio span{font-size:9.5px;color:var(--faint);font-weight:700;margin-top:3px;display:block}
+.cup{font-variant-numeric:tabular-nums}
+/* 卡片進場（情感化設計 · 點 5：逐張淡入上浮，一次性；切換週/分頁才播）*/
+.intro-card{animation:rise .5s cubic-bezier(.2,.7,.3,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.intro-card{animation:none}}
+
 /* banners */
 .banner{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:16px;margin-bottom:14px}
 .banner-dark{background:var(--nav)}
@@ -589,7 +617,8 @@ const ICO={
  alert:'<path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
  trend:'<path d="M16 7h6v6"/><path d="M22 7l-8.5 8.5-5-5L2 17"/>',
  strava:'<path d="M15.4 16.97l-2.2-4.4-2.2 4.4H7.5L13.2 5l5.7 11.97h-3.5z"/>',
- check:'<path d="M5 13l4 4L19 7"/>'
+ check:'<path d="M5 13l4 4L19 7"/>',
+ flame:'<path d="M12 2C8 7 7 9 7 13a5 5 0 0 0 10 0c0-2-1-3.5-2-5 0 1.5-1 2-1.7 2C14 7.5 13 4.5 12 2Z"/>'
 };
 function ico(name,stroke,sz,sw){ if(name==='strava') return `<svg viewBox="0 0 24 24" fill="${stroke}" style="width:${sz}px;height:${sz}px">${ICO.strava}</svg>`; return `<svg viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="${sw||1.8}" stroke-linecap="round" stroke-linejoin="round" style="width:${sz}px;height:${sz}px">${ICO[name]||''}</svg>`; }
 function discIcon(text,lv,rest){ if(rest)return'rest'; const t=text.toLowerCase(); if(/calf|mobility|伸展/.test(t))return'flex'; if(/strength|肌力/.test(t))return'strength'; if(/brick/.test(t))return'brick'; if(/swim|游/.test(t))return'swim'; if(/bike|ftp|ramp|踩台|騎/.test(t))return'bike'; if(/run|time trial|跑/.test(t))return'run'; return'run'; }
@@ -598,11 +627,99 @@ const LVTINT={core:'var(--key-t)',keep:'var(--keep-t)',flex:'var(--flex-t)',rest
 const LVCOLR={core:'#516a8f',keep:'#5e827b',flex:'#7b8494',rest:'#7b8494'};
 
 /* ============================================================
+   情感化設計 · 進度層（點 2/3/4）— 倒數、streak、分項進度、本週/本月量、數字滾動。
+   全部由現有狀態（checks / acts / W）即時算出，不新增儲存欄位。
+   ============================================================ */
+let _vKey=null, _introOn=false;          // _introOn：本次 render 是否要播放進場＋數字滾動（只在切換週/分頁時 true）
+const RACE=new Date('2027-04-24T00:00:00');
+function daysToRace(){ return Math.max(0,Math.ceil((RACE-new Date())/864e5)); }
+// 某日狀態：done=當天有練到任一堂 / free=只剩休息或伸展(橋接、不斷鏈) / miss=該練沒練 / null=計畫外
+function dayState(dateStr){
+  const w=weekOf(dateStr); if(w<1||w>12) return null;
+  const di=(new Date(dateStr+'T00:00:00').getDay()+6)%7;
+  const sess=effectiveSessions(w,di).filter(s=>!s.rest&&!s.skip);
+  if(sess.some(s=>s.done)) return 'done';
+  if(sess.every(s=>s.lv==='flex')) return 'free';   // 只有伸展/全休 → 不算斷
+  return 'miss';
+}
+// 連續訓練天數：從今天往回數（今天還沒練不算斷），休息/伸展日橋接、漏練才中斷
+function currentStreak(){
+  let n=0, d=new Date();
+  if(dayState(ymd(d))!=='done') d.setDate(d.getDate()-1);
+  for(let i=0;i<160;i++){
+    const st=dayState(ymd(d));
+    if(st==='done'){ n++; d.setDate(d.getDate()-1); }
+    else if(st==='free'){ d.setDate(d.getDate()-1); }
+    else break;
+  }
+  return n;
+}
+// 本週分項：以「每天的主課別」(day[0]) 計數，與 Strava 對應/poolOf 同一套口徑
+function weekDiscProgress(w){
+  const plan=planOf(w), done={swim:0,ride:0,run:0}, pl={swim:0,ride:0,run:0};
+  plan.d.forEach((day,di)=>{
+    const k=discOf(day[0]); if(!k) return; pl[k]++;
+    const s0=effectiveSessions(w,di)[0];
+    if(s0&&s0.done&&!s0.skip) done[k]++;
+  });
+  return {done,plan:pl};
+}
+function weekVolume(w){ let s=0,km=0; acts.forEach(a=>{ if(weekOf(a.date)===w){ s+=a.moving_time_s||0; km+=a.distance_km||0; } }); return {hours:s/3600,km}; }
+function monthMileage(){ const now=new Date(),y=now.getFullYear(),m=now.getMonth(); let km=0; acts.forEach(a=>{ const dt=new Date(a.date+'T00:00:00'); if(dt.getFullYear()===y&&dt.getMonth()===m){ const k=typeToDisc(a.type); if(k==='run'||k==='ride') km+=a.distance_km||0; } }); return km; }
+
+// 數字滾動：0 → 目標（ease-out cubic）。尊重「減少動態」設定。
+function countUp(el,to,o){
+  o=o||{}; const dec=o.dec||0, suf=o.suf||'', pre=o.pre||'';
+  const fmt=v=>pre+(+v).toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec})+suf;
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches){ el.textContent=fmt(to); return; }
+  const t0=performance.now(), dur=o.dur||850;
+  (function step(t){ const k=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-k,3); el.textContent=fmt(to*e); if(k<1) requestAnimationFrame(step); else el.textContent=fmt(to); })(t0);
+}
+// 產生一個可滾動的數字 span（HTML 內已是最終值 → 不播放時直接正確；播放時由 introAnimate 從 0 滾上來）
+function cup(v,dec,suf,pre){
+  dec=dec||0; suf=suf||''; pre=pre||'';
+  const txt=pre+(+v).toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec})+suf;
+  return `<span class="cup" data-to="${v}" data-dec="${dec}" data-suf="${suf}" data-pre="${pre}">${txt}</span>`;
+}
+// render 後呼叫一次：卡片逐張進場（stagger）＋ 數字滾動
+function introAnimate(sel){
+  const root=$(sel); if(!root) return;
+  root.querySelectorAll('.intro-card').forEach((el,i)=>{ el.style.animationDelay=(i*55)+'ms'; });
+  root.querySelectorAll('.cup').forEach(el=>{ countUp(el,parseFloat(el.dataset.to)||0,{dec:+el.dataset.dec||0,suf:el.dataset.suf||'',pre:el.dataset.pre||''}); });
+}
+function renderProgress(w){
+  const IC=_introOn?' intro-card':'';
+  const days=daysToRace(), streak=currentStreak();
+  const {done,plan}=weekDiscProgress(w), vol=weekVolume(w), mkm=monthMileage();
+  const bars=[['swim','swim','游'],['ride','bike','騎'],['run','run','跑']].map(([key,icn,zh])=>{
+    const dn=done[key]||0, pl=plan[key]||0, pct=pl?Math.round(dn/pl*100):0;
+    return `<div class="disc"><div class="disc-h">${ico(icn,'#516a8f',15,2)}<b class="num">${cup(dn)}</b><span class="num">/${pl}</span></div><div class="disc-bar"><i style="width:${pct}%"></i></div><div class="disc-l">${zh}</div></div>`;
+  }).join('');
+  return `<div class="card prog${IC}">
+    <div class="prog-cd">
+      <div><div class="cd-n">${cup(days)}<i>天</i></div><div class="cd-l">距 Challenge Taiwan 226 · 2027-04-24</div></div>
+      <div class="prog-streak"><div class="streak-n">${ico('flame','#c2913f',16,2)}${cup(streak)}</div><div class="streak-l">連續訓練 · 天</div></div>
+    </div>
+    <div class="disc-row">${bars}</div>
+    <div class="stat-trio">
+      <div><b class="num">${cup(vol.hours,1)}<i>h</i></b><span>本週時數</span></div>
+      <div><b class="num">${cup(vol.km,1)}<i>km</i></b><span>本週距離</span></div>
+      <div><b class="num">${cup(mkm,0)}<i>km</i></b><span>本月里程</span></div>
+    </div>
+  </div>`;
+}
+
+/* ============================================================
    Render
    ============================================================ */
 function totals(w){ let total=0,done=0; planOf(w).d.forEach((day,di)=>effectiveSessions(w,di).forEach(s=>{ if(s.rest||s.skip)return; total++; if(s.done)done++; })); return {total,done}; }
 
-function render(){ resolveWeather(); mode==='week'?renderWeek():renderOv(); renderFoot(); }
+function render(){
+  resolveWeather();
+  const vk=mode+':'+cur; _introOn=(vk!==_vKey); _vKey=vk;   // 只有切換週/分頁才播放進場＋滾動；打卡重繪不重播
+  mode==='week'?renderWeek():renderOv();
+  renderFoot();
+}
 window.setMode=m=>{mode=m;$('#segWeek').className=m==='week'?'on':'';$('#segOv').className=m==='ov'?'on':'';$('#weekView').style.display=m==='week'?'block':'none';$('#ovView').style.display=m==='ov'?'block':'none';render();};
 /* ---- 情感化設計 · 打卡完成回饋（點 1）----------------------------------
    完成一次訓練：勾勾描繪 + 輕彈 + 擴散光環 +（Android）震動。
@@ -665,6 +782,7 @@ function weatherBanner(){
 }
 
 function renderWeek(){
+  const IC=_introOn?' intro-card':'';
   const plan=planOf(cur);
   const {total,done}=totals(cur), pct=total?done/total:0;
   const C=2*Math.PI*42, off=C*(1-pct);
@@ -679,16 +797,18 @@ function renderWeek(){
 
   const eyebrow = plan.trip?'導入期 · 移動週':(plan.boosted?'導入期 · 加量週':('導入期'+(plan.type==='Recovery'?' · 減量週':'')+' · Week '+cur));
   const hh = plan.trip?'放鬆就好':(pct>=.6?'狀態超棒':pct>0?'On track':'本週開始');
-  h+=`<div class="card hero"><div class="hero-row">
+  h+=`<div class="card hero${IC}"><div class="hero-row">
     <div class="ring" style="width:96px;height:96px"><svg width="96" height="96"><circle cx="48" cy="48" r="42" fill="none" stroke="#edeff2" stroke-width="7"/><circle class="ring-c" cx="48" cy="48" r="42" fill="none" stroke="${ringCol}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg>
       <div class="ring-t"><span class="ring-pct" style="font-size:26px;color:${pct?'var(--ink)':'var(--faint)'}">${Math.round(pct*100)}<span style="font-size:13px;color:var(--faint)">%</span></span><span class="ring-sub">${done} / ${total}</span></div></div>
     <div style="flex:1;min-width:0"><div class="hero-ey">${eyebrow}</div><div class="hero-h">${hh}</div><div class="hero-m">${DATE[cur]}${plan.trip?' · 全部彈性':''}</div>
     <div class="dots">${weekDots(cur)}</div></div></div>`;
 
-  const sugs=suggestions.filter(s=>Number(s.week)===cur);
-  if(sugs.length){ h+=`<div class="sec">${ico('trend','#516a8f',14,2.2)}<span>Claude 建議</span><span class="ln"></span></div><div class="card" style="overflow:hidden">${sugs.map(sugCard).join('')}</div>`; }
+  h+=renderProgress(cur);
 
-  h+=`<div class="card daylist">`;
+  const sugs=suggestions.filter(s=>Number(s.week)===cur);
+  if(sugs.length){ h+=`<div class="sec">${ico('trend','#516a8f',14,2.2)}<span>Claude 建議</span><span class="ln"></span></div><div class="card${IC}" style="overflow:hidden">${sugs.map(sugCard).join('')}</div>`; }
+
+  h+=`<div class="card daylist${IC}">`;
   plan.d.forEach((day,di)=>{
     const sess=effectiveSessions(cur,di);
     const allRest=sess.every(s=>s.rest);
@@ -710,7 +830,7 @@ function renderWeek(){
   const {out,miss}=matchWeek(cur);
   const nM=out.filter(a=>a.status==='match').length, nB=out.length-nM;
   const nMiss=Math.max(0,miss.run)+Math.max(0,miss.ride)+Math.max(0,miss.swim);
-  h+=`<div class="sec">${ico('strava','#fc5200',15)}<span style="color:#fc5200">Strava this week</span><span class="ln"></span></div><div class="card" style="overflow:hidden">`;
+  h+=`<div class="sec">${ico('strava','#fc5200',15)}<span style="color:#fc5200">Strava this week</span><span class="ln"></span></div><div class="card${IC}" style="overflow:hidden">`;
   h+=`<div class="sv-sum"><div><div class="sv-n" style="color:var(--done)">${nM}</div><div class="sv-l">Matched</div></div><div><div class="sv-n" style="color:var(--bonus)">${nB}</div><div class="sv-l">Bonus</div></div><div><div class="sv-n" style="color:var(--miss)">${nMiss}</div><div class="sv-l">Missing</div></div></div>`;
   if(!out.length) h+=`<div class="empty">本週尚無活動（sample 在 Week 1）</div>`;
   out.forEach(a=>{
@@ -723,6 +843,7 @@ function renderWeek(){
   h+=`</div>`;
   h+=`<div class="legend"><span><i style="background:var(--key)"></i>Key</span><span><i style="background:var(--keep)"></i>Keep</span><span><i style="background:var(--flex)"></i>Flex</span><span><i style="background:var(--done)"></i>Matched</span><span><i style="background:var(--bonus)"></i>Bonus</span></div>`;
   $('#weekView').innerHTML=h;
+  if(_introOn) introAnimate('#weekView');
 }
 function weekOfTodayMaybe(){ const t=new Date(); const w=weekOf(t.toISOString().slice(0,10)); return (w>=1&&w<=12)?w:cur; }
 function weekDots(w){
@@ -738,7 +859,7 @@ function weekDots(w){
 }
 
 function renderOv(){
-  let h=`<div class="ovcap">Consistency Base · 12 週 · Jun 29 – Sep 20。點週列進入，點右側 ${ico('pin','#516a8f',12)} 調整移動/加量。<span style="color:var(--faint)">淡色 = 減量週。</span></div><div class="card" style="overflow:hidden">`;
+  let h=`<div class="ovcap">Consistency Base · 12 週 · Jun 29 – Sep 20。點週列進入，點右側 ${ico('pin','#516a8f',12)} 調整移動/加量。<span style="color:var(--faint)">淡色 = 減量週。</span></div><div class="card${_introOn?' intro-card':''}" style="overflow:hidden">`;
   for(let w=1;w<=12;w++){
     const plan=planOf(w), m=weekMode[w];
     const rec=plan.type==='Recovery'||(m&&m.mode==='recovery');
@@ -757,6 +878,7 @@ function renderOv(){
   }
   h+=`</div>`;
   $('#ovView').innerHTML=h;
+  if(_introOn) introAnimate('#ovView');
 }
 
 function renderFoot(){
@@ -854,7 +976,7 @@ function renderDayPicker(){
 /* ---- nav menu / auth ---- */
 window.toggleMenu=()=>$('#user-menu').classList.toggle('open');
 window.doSignOut=()=>{toggleMenu();if(CLOUD&&auth)auth.signOut();else{$('#shell').classList.remove('on');$('#auth').style.display='flex';$('#auth').classList.remove('gone');}};
-function enter(){$('#auth').classList.add('gone');$('#shell').classList.add('on');setTimeout(()=>$('#auth').style.display='none',420);render();fetchWeather();}
+function enter(){$('#auth').classList.add('gone');$('#shell').classList.add('on');setTimeout(()=>$('#auth').style.display='none',420);_vKey=null;render();fetchWeather();}
 
 /* ---- Firebase auth + Firestore 同步（沿用「收入分配」驗證過的寫法） ---- */
 let auth,db;

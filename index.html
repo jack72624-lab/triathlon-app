@@ -521,10 +521,11 @@ window.adjClear=(di,si)=>{delete sessionAdj[cur+'_'+di+'_'+si];push();closeSheet
    ============================================================ */
 const TRIP_CITY='高雄市', TRIP_COORD=[22.631,120.302];   // 高雄市區（高雄週固定抓這）
 let HOME_LABEL='新北市', HOME_COORD=[25.012,121.465];    // 「在地」預設新北；取得裝置定位後改成你實際所在地
-let _geoTried=false;
+const _cachedGeo=LS('tp_geo',null); if(_cachedGeo&&_cachedGeo.length===2){ HOME_COORD=_cachedGeo; HOME_LABEL='目前位置'; }  // 沿用上次定位，不重新請求權限
 let weatherByDate={};   // {'YYYY-MM-DD':{level,pop,code,wind,city}}
 let _wxRaw=null;        // 兩地原始 daily（換城市時免重抓、重算即可）
 let wxOverride=null;    // 手動覆寫「今天」（'clear'|'rain'|'typhoon'|null），僅本次工作階段
+let wxDismissed=null;   // 今天的天氣 banner 已「自動處理/收起」（存 todayStr），本次工作階段隱藏
 
 function ymd(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }  // 本地日期，避免 toISOString 的 UTC 位移
 function dateOf(w,di){ return ymd(new Date(WK_START.getTime()+((w-1)*7+di)*864e5)); }
@@ -557,19 +558,7 @@ function resolveWeather(){
   weatherByDate=m;
 }
 // 取得裝置位置（只問一次）→ 更新「在地」座標與標籤；拒絕/失敗/逾時 → 維持新北
-function ensureLocation(){
-  return new Promise(res=>{
-    if(_geoTried || !navigator.geolocation) return res();
-    _geoTried=true;
-    navigator.geolocation.getCurrentPosition(
-      p=>{ HOME_COORD=[p.coords.latitude,p.coords.longitude]; HOME_LABEL='目前位置'; res(); },
-      ()=>res(),
-      { timeout:6000, maximumAge:600000 }
-    );
-  });
-}
 async function fetchWeather(){
-  await ensureLocation();
   try{
     const grab=async cc=>{
       const u=`https://api.open-meteo.com/v1/forecast?latitude=${cc[0]}&longitude=${cc[1]}&daily=precipitation_probability_max,weather_code,wind_speed_10m_max&timezone=auto&forecast_days=7`;
@@ -580,20 +569,33 @@ async function fetchWeather(){
     resolveWeather(); render();
   }catch(e){ /* 抓不到就保留上次 */ }
 }
+// 定位改成「使用者主動點」才抓（iOS 主畫面 PWA 權限不跨啟動記憶，自動抓會每次問）；座標存本機沿用
+window.useMyLocation=()=>{
+  if(!navigator.geolocation){ alert('此裝置不支援定位'); return; }
+  navigator.geolocation.getCurrentPosition(
+    p=>{ HOME_COORD=[p.coords.latitude,p.coords.longitude]; HOME_LABEL='目前位置'; localStorage.setItem('tp_geo',JSON.stringify(HOME_COORD)); fetchWeather(); },
+    ()=>alert('拿不到定位 — 可能要到 iPhone 設定允許「位置」權限'),
+    { timeout:8000, maximumAge:0 }
+  );
+};
+window.resetLocation=()=>{ HOME_COORD=[25.012,121.465]; HOME_LABEL='新北市'; localStorage.removeItem('tp_geo'); fetchWeather(); };
 window.setWsim=lv=>{ wxOverride=(lv==='auto'?null:lv); render(); };   // 'auto'=回到自動
 
 // 今天的一鍵調整：依今天天氣改今天的課
 window.autoWeather=()=>{
-  const w=todayWeek(); if(w==null) return; const di=todayIdx(); const lv=todayLevel();
+  const w=todayWeek(); if(w==null) return; const di=todayIdx(); const lv=todayLevel(); let n=0;
   sessionsOf(di,planOf(w).d[di]).forEach((s,si)=>{
     if(s.rest) return;
     const disc=discOf(s.t); const k=w+'_'+di+'_'+si; const a=sessionAdj[k]||{};
-    if(lv==='typhoon'){ if(disc==='ride')a.indoor=1; else a.skip=1; }                                   // 颱風：踩台留、其餘略過
-    else if(lv==='rain'){ if(disc==='ride')a.indoor=1; else if(disc==='run')a.move={to:Math.min(6,di+1),label:DAYS[Math.min(6,di+1)],swap:false}; }  // 雨：單車踩台、跑步換隔天、游泳不動
+    if(lv==='typhoon'){ if(disc==='ride'){a.indoor=1;n++;} else {a.skip=1;n++;} }                                   // 颱風：踩台留、其餘略過
+    else if(lv==='rain'){ if(disc==='ride'){a.indoor=1;n++;} else if(disc==='run'){a.move={to:Math.min(6,di+1),label:DAYS[Math.min(6,di+1)],swap:false};n++;} }  // 雨：單車踩台、跑步換隔天、游泳不動
     sessionAdj[k]=a;
   });
+  wxDismissed=todayStr();                                               // 處理過就收起今天的提醒
   push(); render();
+  showCheer(n>0?`已照天氣調整今天的戶外課（${n} 堂）`:'今天沒有戶外課要調整，先收起提醒');
 };
+window.dismissWx=()=>{ wxDismissed=todayStr(); render(); };
 
 // 週末關鍵課對調建議：比較週六(長騎+磚)/週日(長跑)的預報
 function weekendAdvice(w){
@@ -842,10 +844,11 @@ function adjTags(s){
 }
 
 function weatherBanner(){
+  if(wxDismissed===todayStr()) return '';                              // 已自動處理/收起 → 今天不再顯示
   const di=todayIdx(); const lv=todayLevel(); const f=weatherByDate[todayStr()]||{};
   const popTx=f.pop!=null?` · 降雨機率 ${f.pop}%`:''; const wx=f.code!=null?wxText(f.code):'今天有雨';
   if(lv==='rain'){
-    return `<div class="banner banner-rain"><div class="b-ic">${ico('rain','#9fb3d6',19)}</div><div style="flex:1;min-width:0"><div class="b-t">${wx} · 週${DAYZH[di]}</div><div class="b-s">戶外課程建議改室內或換天${popTx}</div></div><div class="banner-act" onclick="autoWeather()">自動處理</div></div>`;
+    return `<div class="banner banner-rain"><div class="b-ic">${ico('rain','#9fb3d6',19)}</div><div style="flex:1;min-width:0"><div class="b-t">${wx} · 週${DAYZH[di]}</div><div class="b-s">戶外課程建議改室內或換天${popTx}</div></div><div class="banner-act" onclick="autoWeather()">自動處理</div><div class="banner-act" onclick="dismissWx()" style="background:transparent;color:#9aa3b4">知道了</div></div>`;
   }
   if(lv==='typhoon'){
     return `<div class="banner banner-warn"><div class="wh"><div class="b-ic">${ico('alert','#a6772e',19)}</div><div style="flex:1;min-width:0"><div class="b-t">強風警示 · 週${DAYZH[di]}</div><div class="b-s">泳池多半關閉、外出不安全${f.wind!=null?` · 陣風 ${Math.round(f.wind)} km/h`:''}</div></div></div><div class="wbtns"><button class="wb1" onclick="autoWeather()">自動處理</button><button class="wb2" onclick="setWsim('clear')">忽略</button></div></div>`;
@@ -959,7 +962,10 @@ function renderFoot(){
   const opts=[['auto','自動'],['clear','晴'],['rain','雨'],['typhoon','颱風']];
   const sel=wxOverride||'auto';
   const tc=(weatherByDate[todayStr()]||{}).city||HOME_LABEL;
-  $('#foot').innerHTML=`Challenge Taiwan 226 · 2027-04-24<div style="margin-top:8px;font-size:10px;color:var(--hint)">天氣 Open-Meteo（${tc}）· 今天可手動覆寫</div><div class="wsim">${opts.map(o=>`<button class="${sel===o[0]?'on':''}" onclick="setWsim('${o[0]}')">${o[1]}</button>`).join('')}</div>`;
+  const geoCtl = HOME_LABEL==='目前位置'
+    ? `<span onclick="resetLocation()" style="text-decoration:underline;cursor:pointer">改回新北</span>`
+    : `<span onclick="useMyLocation()" style="text-decoration:underline;cursor:pointer">用目前位置</span>`;
+  $('#foot').innerHTML=`Challenge Taiwan 226 · 2027-04-24<div style="margin-top:8px;font-size:10px;color:var(--hint)">天氣 Open-Meteo（${tc}）· ${geoCtl}</div><div class="wsim">${opts.map(o=>`<button class="${sel===o[0]?'on':''}" onclick="setWsim('${o[0]}')">${o[1]}</button>`).join('')}</div>`;
 }
 
 function fmtKm(a){return a.distance_km?a.distance_km.toFixed(1)+'k':'';}

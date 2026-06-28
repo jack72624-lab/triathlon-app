@@ -139,9 +139,25 @@ button{font-family:inherit}
 .tags{display:flex;align-items:center;gap:5px;margin-top:4px;flex-wrap:wrap}
 .tag{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px}
 .tag-note{font-size:10px;color:var(--faint)}
-.chk{flex:0 0 26px;width:26px;height:26px;border-radius:99px;border:1.5px solid #d8dbe2;background:#fff;display:flex;align-items:center;justify-content:center;transition:transform .1s}
+.chk{flex:0 0 26px;width:26px;height:26px;border-radius:99px;border:1.5px solid #d8dbe2;background:#fff;display:flex;align-items:center;justify-content:center;transition:transform .1s;position:relative}
 .chk.on{background:var(--done);border-color:var(--done)}
 .sess:active .chk{transform:scale(.86)}
+
+/* ---------- 打卡完成回饋（情感化設計 · 點 1）---------- */
+/* 勾勾描繪：完成瞬間讓既有的白勾從無到有畫出來 */
+.chk.pop svg path{stroke-dasharray:22;stroke-dashoffset:22;animation:tickdraw .4s .04s cubic-bezier(.65,0,.35,1) forwards}
+@keyframes tickdraw{to{stroke-dashoffset:0}}
+/* 整顆 checkbox 輕彈一下（overshoot 回正）*/
+.chk.pop{animation:chkpop .42s cubic-bezier(.34,1.56,.64,1)}
+@keyframes chkpop{0%{transform:scale(.7)}45%{transform:scale(1.2)}100%{transform:scale(1)}}
+/* 擴散光環：往外擴一圈淡出；跑步項會再疊一圈較亮的 .r2 */
+.ringfx{position:absolute;inset:0;border-radius:50%;border:2.5px solid var(--done);opacity:0;pointer-events:none;animation:ringburst .55s ease-out forwards}
+.ringfx.r2{border-color:#7bc4a0;animation:ringburst .6s .12s ease-out forwards}
+@keyframes ringburst{0%{opacity:.85;transform:scale(.7)}100%{opacity:0;transform:scale(2.1)}}
+/* 跑步完成的鼓勵浮字（弱項 → 額外正回饋）*/
+.cheer{position:fixed;left:50%;bottom:calc(42px + var(--safe-bot));transform:translate(-50%,16px);background:var(--nav);color:#f3f4f7;font-size:13px;font-weight:700;padding:11px 18px;border-radius:13px;box-shadow:0 10px 34px rgba(0,0,0,.28);opacity:0;z-index:150;pointer-events:none;transition:opacity .3s,transform .3s cubic-bezier(.3,.9,.3,1);max-width:78vw;text-align:center;line-height:1.5}
+.cheer.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){.chk.pop,.chk.pop svg path,.ringfx,.ringfx.r2{animation:none}.chk.pop svg path{stroke-dashoffset:0}}
 
 /* strava */
 .sv-sum{display:flex;border-bottom:1px solid var(--line)}
@@ -584,7 +600,36 @@ function totals(w){ let total=0,done=0; planOf(w).d.forEach((day,di)=>effectiveS
 
 function render(){ resolveWeather(); mode==='week'?renderWeek():renderOv(); renderFoot(); }
 window.setMode=m=>{mode=m;$('#segWeek').className=m==='week'?'on':'';$('#segOv').className=m==='ov'?'on':'';$('#weekView').style.display=m==='week'?'block':'none';$('#ovView').style.display=m==='ov'?'block':'none';render();};
-window.toggle=(di,si)=>{const k=cur+'_'+di+'_'+si;checks[k]=!checks[k];push();render();};
+/* ---- 情感化設計 · 打卡完成回饋（點 1）----------------------------------
+   完成一次訓練：勾勾描繪 + 輕彈 + 擴散光環 +（Android）震動。
+   跑步是弱項 → 額外給鼓勵浮字 + 雙光環 + 較強震動（針對這位使用者的關鍵客製）。
+   全附加式：先 render（狀態即時生效、零延遲），再把動畫疊到剛畫好的 checkbox 上。 */
+const RUN_CHEERS=[
+  '跑步打卡完成 — 這是你最該贏的一項，穩住。',
+  '又一次跑步入帳。弱項就是靠這種日子翻盤的。',
+  '跑完了。每一次都在把 226 的跑段補回來。',
+  '這一跑算數了。配速別貪快，累積比強度重要。',
+  '跑步又 +1。練起來的不是腿，是底氣。'
+];
+let _cheerEl=null,_cheerTimer=null;
+function showCheer(msg){
+  if(!_cheerEl){ _cheerEl=document.createElement('div'); _cheerEl.className='cheer'; document.body.appendChild(_cheerEl); }
+  _cheerEl.textContent=msg;
+  requestAnimationFrame(()=>_cheerEl.classList.add('show'));
+  clearTimeout(_cheerTimer); _cheerTimer=setTimeout(()=>_cheerEl.classList.remove('show'),1900);
+}
+function celebrateCheck(k,di,si){
+  const sess=document.querySelector('.sess[data-k="'+k+'"]'); if(!sess) return;
+  const chk=sess.querySelector('.chk'); if(!chk) return;
+  const isRun=discOf((effectiveSessions(cur,di)[si]||{}).t||'')==='run';
+  chk.appendChild(Object.assign(document.createElement('span'),{className:'ringfx'}));      // 光環一圈
+  if(isRun) chk.appendChild(Object.assign(document.createElement('span'),{className:'ringfx r2'})); // 跑步再疊一圈
+  chk.classList.add('pop');                                                                  // 勾勾描繪 + 輕彈
+  if(navigator.vibrate) navigator.vibrate(isRun?[10,40,16]:15);                              // iOS Safari 無 vibrate → 無聲降級
+  if(isRun) showCheer(RUN_CHEERS[Math.floor(Math.random()*RUN_CHEERS.length)]);              // 跑步鼓勵浮字
+  setTimeout(()=>{ chk.querySelectorAll('.ringfx').forEach(n=>n.remove()); chk.classList.remove('pop'); },700);
+}
+window.toggle=(di,si)=>{const k=cur+'_'+di+'_'+si;const was=!!checks[k];checks[k]=!checks[k];push();render();if(!was&&checks[k])celebrateCheck(k,di,si);};
 window.exAct=(id,yes)=>{bonus[id]=yes?1:0;push();renderWeek();};
 
 function tagSpan(txt,kind,iconName){
@@ -646,7 +691,7 @@ function renderWeek(){
     sess.forEach((s,si)=>{
       if(s.rest){ h+=`<div class="sess sess-rest"><div class="sqr" style="background:var(--rest-t)">${ico('rest','#a2a9b5',18)}</div><div class="sbody"><div class="stitle">${s.t}</div></div></div>`; return; }
       const tags=adjTags(s); const titleCls=s.done?'done':(s.skip?'skip':'');
-      h+=`<div class="sess" style="border-left:3px solid ${LVCOL[s.lv]}" onclick="toggle(${di},${si})">
+      h+=`<div class="sess" data-k="${cur}_${di}_${si}" style="border-left:3px solid ${LVCOL[s.lv]}" onclick="toggle(${di},${si})">
         <div class="sqr" style="background:${LVTINT[s.lv]}" onclick="event.stopPropagation();openAdj(${di},${si})">${ico(discIcon(s.t,s.lv),LVCOL[s.lv],19)}</div>
         <div class="sbody"><div class="stitle ${titleCls}">${s.t}${s.test?' · test':''}</div>${tags?`<div class="tags">${tags}</div>`:''}</div>
         <div class="chk ${s.done?'on':''}">${s.done?ico('check','#fff',13,3.5):''}</div></div>`;

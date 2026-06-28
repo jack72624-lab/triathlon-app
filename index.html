@@ -258,11 +258,9 @@ button{font-family:inherit}
 #sheet{position:fixed;inset:0;z-index:120;display:none}
 #sheet.on{display:block}
 .sheet-dim{position:absolute;inset:0;background:rgba(12,14,20,.42)}
-.sheet-card{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:26px 26px 0 0;padding:10px 20px calc(24px + var(--safe-bot));box-shadow:0 -10px 40px rgba(0,0,0,.18);transform:translateY(0);transition:transform .26s cubic-bezier(.3,.9,.3,1);max-height:88vh;overflow-y:auto}
+.sheet-card{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:26px 26px 0 0;padding:10px 20px calc(24px + var(--safe-bot));box-shadow:0 -10px 40px rgba(0,0,0,.18);transform:translateY(0);transition:transform .26s cubic-bezier(.3,.9,.3,1);max-height:88vh;overflow-y:auto;overscroll-behavior:contain}
 #sheet:not(.on) .sheet-card{transform:translateY(100%)}
-.sheet-grab{width:54px;height:5px;border-radius:99px;background:#dfe3ea;margin:2px auto 16px;cursor:pointer;padding:0}
-.sheet-x{position:absolute;top:12px;right:14px;width:30px;height:30px;border-radius:50%;border:none;background:#eef0f3;color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:6}
-.sheet-x svg{width:15px;height:15px}
+.sheet-grab{width:54px;height:5px;border-radius:99px;background:#dfe3ea;margin:2px auto 16px}
 .sh-head{display:flex;align-items:center;gap:11px;margin-bottom:14px}
 .sh-ic{width:38px;height:38px;border-radius:11px;background:var(--key-t);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .sh-h{font-size:16px;font-weight:800;color:var(--ink)}
@@ -318,6 +316,7 @@ button{font-family:inherit}
 .proto li b{font-weight:700}
 .warn-note{font-size:12px;color:#7a5618;background:var(--warn-t);border:1px solid var(--warn-b);border-radius:13px;padding:11px 13px;margin-top:13px;line-height:1.55}
 .sh-divider{height:1px;background:var(--line);margin:18px 0 16px}
+.demo-lnk{display:inline-flex;align-items:center;font-size:11px;font-weight:700;color:var(--key);text-decoration:none;white-space:nowrap;background:var(--key-t);padding:2px 8px;border-radius:6px;margin-left:5px}
 </style>
 </head>
 <body>
@@ -940,16 +939,15 @@ function fmtExtra(a){const x=[];if(a.avg_hr)x.push('HR'+a.avg_hr);if(a.avg_watts
 /* ============================================================
    Sheets
    ============================================================ */
-const _XBTN='<button class="sheet-x" aria-label="關閉" onclick="closeSheet()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
-function openSheet(html){ const c=$('#sheet-card'); c.style.transition=''; c.style.transform=''; c.innerHTML=_XBTN+html; $('#sheet').classList.add('on'); }
-window.closeSheet=()=>$('#sheet').classList.remove('on');
-// 下拉手勢關閉：內容捲到頂時往下拉超過門檻即關（捲動中不誤觸）
+function openSheet(html){ const c=$('#sheet-card'); c.style.transition=''; c.style.transform=''; c.innerHTML=html; $('#sheet').classList.add('on'); const sc=$('.scroll'); if(sc) sc.style.overflow='hidden'; }  // 鎖背景：開啟時下層不滾動
+window.closeSheet=()=>{ $('#sheet').classList.remove('on'); const sc=$('.scroll'); if(sc) sc.style.overflow=''; };
+// 唯一關閉手勢＝往下拉（門檻 170px，較不靈敏）；preventDefault 讓背景不跟著跑、只動 sheet 本身
 (function(){
   const c=$('#sheet-card'); if(!c) return;
   let sy=0, dy=0, on=false;
   c.addEventListener('touchstart',e=>{ if(c.scrollTop>2){on=false;return;} sy=e.touches[0].clientY; dy=0; on=true; c.style.transition='none'; },{passive:true});
-  c.addEventListener('touchmove',e=>{ if(!on) return; dy=e.touches[0].clientY-sy; if(dy<0) dy=0; c.style.transform='translateY('+dy+'px)'; },{passive:true});
-  c.addEventListener('touchend',()=>{ if(!on) return; on=false; c.style.transition=''; if(dy>100) closeSheet(); c.style.transform=''; },{passive:true});
+  c.addEventListener('touchmove',e=>{ if(!on) return; dy=e.touches[0].clientY-sy; if(dy<0) dy=0; if(dy>0) e.preventDefault(); c.style.transform='translateY('+dy+'px)'; },{passive:false});
+  c.addEventListener('touchend',()=>{ if(!on) return; on=false; c.style.transition=''; if(dy>170) closeSheet(); c.style.transform=''; },{passive:true});
 })();
 
 // 調整這週（完整 / 移動減量 / 加量）
@@ -964,7 +962,7 @@ function renderTrip(){
   const w=tripDraft.w, orig=W[w].type;
   const sel=tripDraft.mode;
   const nextRec = W[w+1] && W[w+1].type==='Recovery';
-  let h=`<div class="sheet-grab" onclick="closeSheet()"></div>
+  let h=`<div class="sheet-grab"></div>
    <div class="sh-head"><div class="sh-ic">${ico('pin','#516a8f',20)}</div><div><div class="sh-h">Week ${w} · 調整這週</div><div class="sh-s">${DATE[w]}</div></div></div>
    <div class="opt ${sel==='full'?'sel':''}" onclick="tripPick('full')"><div class="radio">${sel==='full'?dot():''}</div><div class="opt-b"><div class="opt-t">完整課表</div><div class="opt-d">${orig} · 原訂</div></div></div>
    <div class="opt ${sel==='recovery'?'sel':''}" onclick="tripPick('recovery')"><div class="radio">${sel==='recovery'?dot():''}</div><div class="opt-b"><div class="opt-t">減量・移動週 <span class="tag" style="color:var(--key);background:#e6ebf3;display:inline-flex">適合外出</span></div><div class="opt-d">Recovery · 課程轉 Flex</div>
@@ -1002,8 +1000,10 @@ const SESS_INFO={
  'ftp-test':{rows:[['強度','漸增到力竭 / 全力'],['做法','訓練台 ramp（每段漸增功率到撐不住），或 20 分 TT × 0.95 = FTP'],['注意','先暖身 15min；前一天別練爆；測完把課表瓦數換成你的真值']],why:'這是定<b>騎車強度的基準</b> —— IF 0.68–0.72 的目標瓦數從這個 FTP 來。現在 195W 是 Garmin 估的，這次實測校正。'},
  'tt-test':{rows:[['強度','5k 盡力均速（不是衝刺）'],['做法','暖身 10–15min → 全力跑 5k；用成績反推可持續馬拉松配速（約 5k 配速 +60–75 秒/km）'],['注意','排在恢復週後狀態好時；找平坦路段或操場']],why:'定<b>跑步配速基準</b> —— brick 與長跑的目標配速從這校準，取代現在的心率暫代。'}
 };
-const STRENGTH_HTML=`<div class="proto"><h5>暖身 5min</h5><ul><li>髖繞環、徒手深蹲、弓箭步走</li></ul><h5>主項（選 3–4，每項 2–3 組 × 8–12 下）</h5><ul><li><b>高腳杯深蹲</b> — 下肢整體</li><li><b>羅馬尼亞硬舉</b> — 後鏈/臀腿，跑步推進力</li><li><b>後腳抬高分腿蹲</b> — 單腳，修左右失衡＝跑步專項</li><li><b>上階 / 單腳蹲</b></li></ul><h5>核心＋髖穩定（2–3 項）</h5><ul><li>死蟲、側棒、單腳臀橋、鳥狗</li></ul><h5>收尾</h5><ul><li>提踵（接小腿離心）</li></ul></div><div class="dt-why">導入期重<b>動作品質與徵召</b>，不追大重量（Build 才進 MS 大重量低反覆）。複合、單腳、後鏈導向支援跑步經濟性與骨盆穩定；不排增肌型小腿課。依 PLAN §13：每週 2 次各 30–45min，AA→MS 漸進。</div>`;
-const CALF_HTML=`<div class="proto"><ul><li><b>滾筒</b> 腓腸肌＋比目魚肌，各 1–2min（找痛點停留）</li><li><b>離心提踵（Alfredson 型，阿基里斯實證核心）</b>：站階梯邊緣，雙腳提起 → 單腳緩慢放下到腳跟低於階梯。直膝 15 下 × 2、屈膝 15 下 × 2</li><li><b>短伸展 ≤10min</b>：靠牆小腿伸展，直膝＋屈膝各 30 秒 × 2</li></ul></div><div class="dt-why">PLAN §7 實證主力是<b>離心負荷</b>（非長靜態伸展）。定位是阿基里斯/腳踝健康維護，<b>不增粗、也不會明顯瘦小腿</b>。</div><div class="warn-note">⚠ 腳踝外側／膝外側若出現症狀 → 停課、找物理治療，別硬推（PLAN §9）。</div>`;
+// 看示範：開 YouTube 該動作教學（零素材零授權；用搜尋連結不會死連）
+function yt(q){ return `<a class="demo-lnk" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q+' 教學')}" target="_blank" rel="noopener">看示範 ›</a>`; }
+const STRENGTH_HTML=`<div class="proto"><h5>暖身 5min</h5><ul><li>髖繞環、徒手深蹲、弓箭步走 ${yt('跑者 動態暖身')}</li></ul><h5>主項（選 3–4，每項 2–3 組 × 8–12 下）</h5><ul><li><b>高腳杯深蹲</b> — 下肢整體 ${yt('高腳杯深蹲')}</li><li><b>羅馬尼亞硬舉</b> — 後鏈/臀腿，跑步推進力 ${yt('羅馬尼亞硬舉 RDL')}</li><li><b>後腳抬高分腿蹲</b> — 單腳，修左右失衡 ${yt('保加利亞分腿蹲')}</li><li><b>上階 / 單腳蹲</b> ${yt('啞鈴上階 step up')}</li></ul><h5>核心＋髖穩定（2–3 項）</h5><ul><li>死蟲 ${yt('死蟲 dead bug')}</li><li>側棒 ${yt('側棒 side plank')}</li><li>單腳臀橋 ${yt('單腳臀橋')}</li><li>鳥狗 ${yt('鳥狗 bird dog')}</li></ul><h5>收尾</h5><ul><li>提踵（接小腿離心）${yt('啞鈴提踵')}</li></ul></div><div class="dt-why">導入期重<b>動作品質與徵召</b>，不追大重量（Build 才進 MS 大重量低反覆）。複合、單腳、後鏈導向支援跑步經濟性與骨盆穩定；不排增肌型小腿課。依 PLAN §13：每週 2 次各 30–45min，AA→MS 漸進。</div>`;
+const CALF_HTML=`<div class="proto"><ul><li><b>滾筒</b> 腓腸肌＋比目魚肌，各 1–2min（找痛點停留）${yt('滾筒放鬆 小腿')}</li><li><b>離心提踵（Alfredson 型，阿基里斯實證核心）</b>：站階梯邊緣，雙腳提起 → 單腳緩慢放下到腳跟低於階梯。直膝 15 下 × 2、屈膝 15 下 × 2 ${yt('Alfredson 離心提踵 阿基里斯')}</li><li><b>短伸展 ≤10min</b>：靠牆小腿伸展，直膝＋屈膝各 30 秒 × 2 ${yt('靠牆小腿伸展')}</li></ul></div><div class="dt-why">PLAN §7 實證主力是<b>離心負荷</b>（非長靜態伸展）。定位是阿基里斯/腳踝健康維護，<b>不增粗、也不會明顯瘦小腿</b>。</div><div class="warn-note">⚠ 腳踝外側／膝外側若出現症狀 → 停課、找物理治療，別硬推（PLAN §9）。</div>`;
 function detailType(t){ const x=(t||'').toLowerCase();
   if(/calf|小腿/.test(x)) return 'calf';
   if(/strength|肌力|核心/.test(x)) return 'strength';
@@ -1034,7 +1034,7 @@ window.openAdj=(di,si)=>{
   const indoorTxt = disc==='swim'?'室內泳池':disc==='ride'?'改踩台（室內）':'跑步機（室內）';
   const adj=sessionAdj[cur+'_'+di+'_'+si]||{};
   const type=detailType(s.t), dbody=type?detailBody(type):'', lvZh={core:'核心',keep:'維持',flex:'彈性',rest:'休息'}[s.lv]||'', loc=detailLoc(type,adj.indoor);
-  let h=`<div class="sheet-grab" onclick="closeSheet()"></div>
+  let h=`<div class="sheet-grab"></div>
    <div class="sh-head"><div class="sh-ic">${ico(discIcon(s.t,s.lv),'#516a8f',20)}</div><div><div class="sh-h">${s.t}</div><div class="sh-s">週${DAYZH[di]} · ${T[s.lv]} ${lvZh} · ${loc}</div></div></div>
    ${dbody?`<div class="dt-sec">課程細節</div>${dbody}<div class="sh-divider"></div>`:''}
    <div class="dt-sec">調整這堂</div>
@@ -1060,7 +1060,7 @@ function renderDayPicker(){
     cells+=`<div class="daycell ${cls}" ${d===di?'':`onclick="dpDraft.target=${d};renderDayPicker()"`}><div class="dn">${DAYZH[d]}</div><div class="dc">${sub}</div></div>`;
   }
   const tgtSess=effectiveSessions(cur,dpDraft.target).filter(x=>!x.rest)[0];
-  let h=`<div class="sheet-grab" onclick="closeSheet()"></div>
+  let h=`<div class="sheet-grab"></div>
    <div class="sh-head"><div class="sh-ic">${ico('swap','#516a8f',19)}</div><div><div class="sh-h">換到別天</div><div class="sh-s">${s.t} · 週${DAYZH[di]}</div></div></div>
    <div class="subtoggle" style="margin-bottom:16px"><button class="${!dpDraft.swap?'on':''}" onclick="dpDraft.swap=false;renderDayPicker()">移到別天</button><button class="${dpDraft.swap?'on':''}" onclick="dpDraft.swap=true;renderDayPicker()">與該天互換</button></div>
    <div class="daygrid">${cells}</div>
